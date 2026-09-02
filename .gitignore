@@ -1,0 +1,19 @@
+# Environments
+.venv/
+__pycache__/
+*.pyc
+
+# Data (DVC-tracked, not git-tracked directly)
+data/raw/*.csv
+data/interim/
+data/processed/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS/editor
+.DS_Store
+.vscode/
+
+# Env secrets
+.env
