@@ -1,0 +1,5 @@
+[core]
+    remote = r2remote
+['remote "r2remote"']
+    url = s3://fraudar-mlops-data
+    endpointurl = https://c6a269ce3242accb47455e96d6d9008e.r2.cloudflarestorage.com
