@@ -6,7 +6,8 @@ __pycache__/
 # Data (DVC-tracked, not git-tracked directly)
 data/raw/*.csv
 data/interim/
-data/processed/
+data/processed/*.pkl
+data/processed/*.csv
 
 # Notebooks
 .ipynb_checkpoints/
