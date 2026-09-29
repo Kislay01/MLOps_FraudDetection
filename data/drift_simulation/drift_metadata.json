@@ -1,0 +1,11 @@
+{
+  "drift_point_row_index": 59054,
+  "drift_point_transaction_dt": 13990941,
+  "fraud_rate_multiplier": 2.5,
+  "amount_multiplier_for_fraud": 1.8,
+  "random_seed": 42,
+  "before_fraud_rate": 0.03134419345006265,
+  "after_fraud_rate": 0.09367697361736715,
+  "before_auc": 0.9070436192757474,
+  "after_auc": 0.6878883648388835
+}

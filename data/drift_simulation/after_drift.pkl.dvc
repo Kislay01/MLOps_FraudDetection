@@ -1,0 +1,5 @@
+outs:
+- md5: 5c0f253386207e78ec17590e9b6c01b5
+  size: 9221219
+  hash: md5
+  path: after_drift.pkl
