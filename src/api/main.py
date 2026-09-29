@@ -1,6 +1,7 @@
 """
 FastAPI service for real-time fraud detection inference.
-Loads the current 'champion' model from the MLflow Model Registry.
+Supports blue-green deployment: routes traffic between two model versions
+loaded from the MLflow Model Registry, with configurable traffic split.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -11,6 +12,9 @@ from mlflow import MlflowClient
 import pandas as pd
 from typing import Dict, Any
 import logging
+import random
+import json
+import os
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
@@ -18,58 +22,138 @@ logger = logging.getLogger(__name__)
 
 MLFLOW_TRACKING_URI = "http://localhost:5000"
 MODEL_NAME = "fraud-detection-model"
-MODEL_ALIAS = "champion"
 
-app = FastAPI(title="Fraudar Fraud Detection API", version="1.0")
+AUDIT_LOG_PATH = "logs/predictions_audit.jsonl"
+os.makedirs("logs", exist_ok=True)
+
+app = FastAPI(title="Fraudar Fraud Detection API", version="2.0")
 
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 client = MlflowClient()
 
-model = None
-model_version = None
-feature_names = None
+# Blue-green state: two slots, each optionally loaded with a model + its alias/version
+deployment_state = {
+    "blue": {"alias": "champion", "model": None, "version": None, "feature_names": None},
+    "green": {"alias": None, "model": None, "version": None, "feature_names": None},
+}
+
+# Traffic split: fraction of requests routed to "green" (0.0 = all blue, 1.0 = all green)
+traffic_split = {"green_weight": 0.0}
 
 
 class Transaction(BaseModel):
     data: Dict[str, Any]
 
 
-@app.on_event("startup")
-def load_champion_model():
-    global model, model_version, feature_names
-    model_info = client.get_model_version_by_alias(MODEL_NAME, MODEL_ALIAS)
-    model_version = model_info.version
-    model_uri = f"models:/{MODEL_NAME}@{MODEL_ALIAS}"
+class DeploymentConfig(BaseModel):
+    green_alias: str
+    green_weight: float
+
+
+def _load_slot(slot_name: str, alias: str):
+    model_info = client.get_model_version_by_alias(MODEL_NAME, alias)
+    model_uri = f"models:/{MODEL_NAME}@{alias}"
     model = mlflow.xgboost.load_model(model_uri)
-    feature_names = model.get_booster().feature_names
-    logger.info(f"Loaded champion model version {model_version} with {len(feature_names)} features.")
+    deployment_state[slot_name] = {
+        "alias": alias,
+        "model": model,
+        "version": model_info.version,
+        "feature_names": model.get_booster().feature_names,
+    }
+    logger.info(f"Loaded '{alias}' into slot '{slot_name}': version {model_info.version}")
+
+
+def log_prediction_audit(record: Dict[str, Any], proba: float, prediction: int, slot_name: str, version: str):
+    audit_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "transaction_id": record.get("TransactionID", "unknown"),
+        "fraud_probability": proba,
+        "is_fraud": prediction,
+        "served_by": slot_name,
+        "model_version": version,
+    }
+    with open(AUDIT_LOG_PATH, "a") as f:
+        f.write(json.dumps(audit_entry) + "\n")
+
+
+@app.on_event("startup")
+def load_initial_models():
+    _load_slot("blue", "champion")
 
 
 @app.get("/health")
 def health_check():
     return {
         "status": "healthy",
-        "model_version": model_version,
+        "blue_version": deployment_state["blue"]["version"],
+        "green_version": deployment_state["green"]["version"],
+        "green_weight": traffic_split["green_weight"],
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
+@app.post("/admin/deploy_green")
+def deploy_green(config: DeploymentConfig):
+    """Load a model into the 'green' slot and set traffic split, without touching 'blue'."""
+    if not (0.0 <= config.green_weight <= 1.0):
+        raise HTTPException(status_code=400, detail="green_weight must be between 0.0 and 1.0")
+
+    _load_slot("green", config.green_alias)
+    traffic_split["green_weight"] = config.green_weight
+
+    return {
+        "status": "deployed",
+        "green_version": deployment_state["green"]["version"],
+        "green_weight": traffic_split["green_weight"]
+    }
+
+
+@app.post("/admin/promote_green")
+def promote_green():
+    """Promote green to blue (full cutover), reset green slot."""
+    if deployment_state["green"]["model"] is None:
+        raise HTTPException(status_code=400, detail="No model deployed in green slot")
+
+    deployment_state["blue"] = deployment_state["green"]
+    deployment_state["green"] = {"alias": None, "model": None, "version": None, "feature_names": None}
+    traffic_split["green_weight"] = 0.0
+
+    return {"status": "promoted", "blue_version": deployment_state["blue"]["version"]}
+
+
+def _predict_with_slot(slot, record: Dict[str, Any]):
+    row = {col: record.get(col, 0) for col in slot["feature_names"]}
+    df = pd.DataFrame([row])
+    proba = float(slot["model"].predict_proba(df)[0, 1])
+    prediction = int(proba >= 0.5)
+    return proba, prediction
+
+
 @app.post("/predict")
 def predict(transaction: Transaction):
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+    if deployment_state["blue"]["model"] is None:
+        raise HTTPException(status_code=503, detail="No model loaded")
 
-    row = {col: transaction.data.get(col, 0) for col in feature_names}
-    df = pd.DataFrame([row])
+    use_green = (
+        deployment_state["green"]["model"] is not None
+        and random.random() < traffic_split["green_weight"]
+    )
+    slot = deployment_state["green"] if use_green else deployment_state["blue"]
+    slot_name = "green" if use_green else "blue"
 
-    proba = float(model.predict_proba(df)[0, 1])
-    prediction = int(proba >= 0.5)
+    proba, prediction = _predict_with_slot(slot, transaction.data)
 
-    logger.info(f"Prediction made: proba={proba:.4f}, prediction={prediction}, model_version={model_version}")
+    logger.info(
+        f"Prediction: proba={proba:.4f}, prediction={prediction}, "
+        f"slot={slot_name}, model_version={slot['version']}"
+    )
+
+    log_prediction_audit(transaction.data, proba, prediction, slot_name, slot["version"])
 
     return {
         "fraud_probability": proba,
         "is_fraud": prediction,
-        "model_version": model_version,
+        "model_version": slot["version"],
+        "served_by": slot_name,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
