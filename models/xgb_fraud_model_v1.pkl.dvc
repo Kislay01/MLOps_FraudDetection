@@ -1,0 +1,5 @@
+outs:
+- md5: 20b7b447f79da7036a8a6fde1b0dc60f
+  size: 803888
+  hash: md5
+  path: xgb_fraud_model_v1.pkl
