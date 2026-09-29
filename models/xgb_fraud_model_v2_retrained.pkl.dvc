@@ -1,0 +1,5 @@
+outs:
+- md5: 2e2748fdfd88765d238fc22782fa6b76
+  size: 707822
+  hash: md5
+  path: xgb_fraud_model_v2_retrained.pkl

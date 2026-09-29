@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "2026-09-29T14:04:01.182959+00:00",
+    "trigger_reason": "drift_detected",
+    "drift_detection_row": 60000,
+    "actual_injection_row": 59054,
+    "detection_lag_rows": 946,
+    "retrain_set_size": 41337,
+    "holdout_set_size": 17717,
+    "old_model_auc_holdout": 0.7006621676719272,
+    "new_model_auc_holdout": 0.9440542569768364,
+    "old_model_precision_holdout": 0.2971014492753623,
+    "old_model_recall_holdout": 0.38340151957919344,
+    "new_model_precision_holdout": 0.5033557046979866,
+    "new_model_recall_holdout": 0.7890122735242548,
+    "promoted": true
+  }
+]
