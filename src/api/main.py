@@ -2,9 +2,12 @@
 FastAPI service for real-time fraud detection inference.
 Supports blue-green deployment: routes traffic between two model versions
 loaded from the MLflow Model Registry, with configurable traffic split.
+Exposes Prometheus metrics for monitoring.
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 import mlflow
 import mlflow.xgboost
@@ -15,7 +18,9 @@ import logging
 import random
 import json
 import os
+import time
 from datetime import datetime, timezone
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,8 +30,6 @@ MODEL_NAME = "fraud-detection-model"
 
 AUDIT_LOG_PATH = "logs/predictions_audit.jsonl"
 os.makedirs("logs", exist_ok=True)
-
-app = FastAPI(title="Fraudar Fraud Detection API", version="2.0")
 
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 client = MlflowClient()
@@ -40,14 +43,21 @@ deployment_state = {
 # Traffic split: fraction of requests routed to "green" (0.0 = all blue, 1.0 = all green)
 traffic_split = {"green_weight": 0.0}
 
-
-class Transaction(BaseModel):
-    data: Dict[str, Any]
-
-
-class DeploymentConfig(BaseModel):
-    green_alias: str
-    green_weight: float
+# Prometheus metrics
+PREDICTION_COUNT = Counter(
+    "fraud_predictions_total", "Total number of predictions made",
+    ["served_by", "model_version", "predicted_class"]
+)
+PREDICTION_LATENCY = Histogram(
+    "fraud_prediction_latency_seconds", "Time taken to make a prediction"
+)
+PREDICTION_CONFIDENCE = Histogram(
+    "fraud_prediction_confidence", "Distribution of predicted fraud probabilities",
+    buckets=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+)
+GREEN_TRAFFIC_WEIGHT = Gauge(
+    "fraud_green_traffic_weight", "Current traffic weight routed to green slot"
+)
 
 
 def _load_slot(slot_name: str, alias: str):
@@ -76,9 +86,22 @@ def log_prediction_audit(record: Dict[str, Any], proba: float, prediction: int, 
         f.write(json.dumps(audit_entry) + "\n")
 
 
-@app.on_event("startup")
-def load_initial_models():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     _load_slot("blue", "champion")
+    yield
+
+
+app = FastAPI(title="Fraudar Fraud Detection API", version="2.0", lifespan=lifespan)
+
+
+class Transaction(BaseModel):
+    data: Dict[str, Any]
+
+
+class DeploymentConfig(BaseModel):
+    green_alias: str
+    green_weight: float
 
 
 @app.get("/health")
@@ -90,6 +113,11 @@ def health_check():
         "green_weight": traffic_split["green_weight"],
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/admin/deploy_green")
@@ -141,7 +169,14 @@ def predict(transaction: Transaction):
     slot = deployment_state["green"] if use_green else deployment_state["blue"]
     slot_name = "green" if use_green else "blue"
 
+    start_time = time.time()
     proba, prediction = _predict_with_slot(slot, transaction.data)
+    latency = time.time() - start_time
+
+    PREDICTION_COUNT.labels(served_by=slot_name, model_version=str(slot["version"]), predicted_class=str(prediction)).inc()
+    PREDICTION_LATENCY.observe(latency)
+    PREDICTION_CONFIDENCE.observe(proba)
+    GREEN_TRAFFIC_WEIGHT.set(traffic_split["green_weight"])
 
     logger.info(
         f"Prediction: proba={proba:.4f}, prediction={prediction}, "
