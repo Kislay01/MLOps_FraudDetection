@@ -1,0 +1,1639 @@
+{
+  "uid": "fraudar-routing",
+  "title": "Fraudar \u00b7 Live Drift Routing",
+  "tags": [
+    "fraudar"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5s",
+  "time": {
+    "from": "now-10m",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "fraudar-prom"
+        },
+        "enable": true,
+        "name": "Route switches",
+        "iconColor": "#ffffff",
+        "expr": "increase(fraud_route_switches_total[15s]) > 0",
+        "step": "5s",
+        "titleFormat": "Route switch",
+        "textFormat": "{{from_model}} \u2192 {{to_model}}"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Serving model",
+      "description": "The model currently answering /predict. Changes automatically when the orchestrator reroutes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "v1 \u00b7 general model",
+                  "color": "#3987e5",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Specialist A \u00b7 amount",
+                  "color": "#d95926",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Specialist B \u00b7 device/email",
+                  "color": "#199e70",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Specialist C \u00b7 velocity",
+                  "color": "#c98500",
+                  "index": 3
+                },
+                "4": {
+                  "text": "Universal model",
+                  "color": "#d55181",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Detected drift",
+      "description": "What the orchestrator's fingerprint says about the latest window of 1,000 transactions.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 5,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(orch_detected_label{label=\"A\"}) + 2*sum(orch_detected_label{label=\"B\"}) + 3*sum(orch_detected_label{label=\"C\"}) + 4*sum(orch_detected_label{label=\"U\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Normal traffic",
+                  "color": "#3987e5",
+                  "index": 0
+                },
+                "1": {
+                  "text": "A \u00b7 amount (card testing)",
+                  "color": "#d95926",
+                  "index": 1
+                },
+                "2": {
+                  "text": "B \u00b7 device/email (takeover)",
+                  "color": "#199e70",
+                  "index": 2
+                },
+                "3": {
+                  "text": "C \u00b7 velocity (fraud ring)",
+                  "color": "#c98500",
+                  "index": 3
+                },
+                "4": {
+                  "text": "U \u00b7 universal shift",
+                  "color": "#d55181",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Injected drift (truth)",
+      "description": "Ground truth from the stream producer. The system never reads this; it is shown only to compare.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(stream_injected_mode{mode=\"A\"}) + 2*sum(stream_injected_mode{mode=\"B\"}) + 3*sum(stream_injected_mode{mode=\"C\"}) + 4*sum(stream_injected_mode{mode=\"U\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Normal traffic",
+                  "color": "#3987e5",
+                  "index": 0
+                },
+                "1": {
+                  "text": "A \u00b7 amount (card testing)",
+                  "color": "#d95926",
+                  "index": 1
+                },
+                "2": {
+                  "text": "B \u00b7 device/email (takeover)",
+                  "color": "#199e70",
+                  "index": 2
+                },
+                "3": {
+                  "text": "C \u00b7 velocity (fraud ring)",
+                  "color": "#c98500",
+                  "index": 3
+                },
+                "4": {
+                  "text": "U \u00b7 universal shift",
+                  "color": "#d55181",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Orchestrator",
+      "description": "Warm-up: the first 5,000 transactions become the clean reference before monitoring begins.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 13,
+        "y": 0,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(orch_policy_state{state=\"warming_up\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "MONITORING",
+                  "color": "#0ca30c",
+                  "index": 0
+                },
+                "1": {
+                  "text": "WARMING UP",
+                  "color": "#fab219",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Live F2 score",
+      "description": "F2 over the last 45 s of labeled predictions. F2 weights recall higher than precision, which is what fraud teams care about. Red < 0.3, amber < 0.5, green >= 0.5.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "5*(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) / (5*(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) + 4*(sum(increase(fraud_labeled_outcomes_total{outcome=\"fn\"}[45s])) or vector(0)) + (sum(increase(fraud_labeled_outcomes_total{outcome=\"fp\"}[45s])) or vector(0)))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 0.3
+              },
+              {
+                "color": "#0ca30c",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Throughput",
+      "description": "Predictions per second served by the API.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(rate(fraud_predictions_total[30s]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "1 \u00b7 Drift signal per feature group",
+      "description": "Each line is how far a feature group has moved from recent normal traffic, in units of its noise floor. A = transaction amount, B = device/email/product, C = velocity. Crossing the dashed line means that group is drifting.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 14,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "orch_drift_score",
+          "legendFormat": "Group {{group}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "orch_group_threshold",
+          "legendFormat": "Alarm threshold",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Group A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Group B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Group C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alarm threshold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    8
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "2 \u00b7 Breadth: features drifting at once",
+      "description": "A broad shift touches dozens of features at once. Crossing the dashed line classifies the drift as universal (U) instead of a single specialist type.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 4,
+        "w": 10,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "orch_drift_breadth",
+          "legendFormat": "Features drifting at once",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "orch_breadth_threshold",
+          "legendFormat": "Alarm threshold",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Features drifting at once"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Alarm threshold"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    8
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "state-timeline",
+      "title": "3 \u00b7 Which model is serving",
+      "description": "The active route over time. Every change here was made by the orchestrator, not a person.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"})",
+          "legendFormat": "Serving model",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -0.5,
+                "to": 0.5,
+                "result": {
+                  "text": "v1 \u00b7 general model",
+                  "color": "#3987e5",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1.5,
+                "result": {
+                  "text": "Specialist A \u00b7 amount",
+                  "color": "#d95926",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1.5,
+                "to": 2.5,
+                "result": {
+                  "text": "Specialist B \u00b7 device/email",
+                  "color": "#199e70",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 2.5,
+                "to": 3.5,
+                "result": {
+                  "text": "Specialist C \u00b7 velocity",
+                  "color": "#c98500",
+                  "index": 3
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 3.5,
+                "to": 4.5,
+                "result": {
+                  "text": "Universal model",
+                  "color": "#d55181",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3987e5",
+                "value": null
+              },
+              {
+                "color": "#d95926",
+                "value": 0.5
+              },
+              {
+                "color": "#199e70",
+                "value": 1.5
+              },
+              {
+                "color": "#c98500",
+                "value": 2.5
+              },
+              {
+                "color": "#d55181",
+                "value": 3.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "state-timeline",
+      "title": "4 \u00b7 Injected vs. detected drift",
+      "description": "Top lane: what was injected. Bottom lane: what the system detected. The gap is detection delay.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(stream_injected_mode{mode=\"A\"}) + 2*sum(stream_injected_mode{mode=\"B\"}) + 3*sum(stream_injected_mode{mode=\"C\"}) + 4*sum(stream_injected_mode{mode=\"U\"})",
+          "legendFormat": "Injected (truth)",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(orch_detected_label{label=\"A\"}) + 2*sum(orch_detected_label{label=\"B\"}) + 3*sum(orch_detected_label{label=\"C\"}) + 4*sum(orch_detected_label{label=\"U\"})",
+          "legendFormat": "Detected (fingerprint)",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -0.5,
+                "to": 0.5,
+                "result": {
+                  "text": "Normal traffic",
+                  "color": "#3987e5",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1.5,
+                "result": {
+                  "text": "A \u00b7 amount (card testing)",
+                  "color": "#d95926",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1.5,
+                "to": 2.5,
+                "result": {
+                  "text": "B \u00b7 device/email (takeover)",
+                  "color": "#199e70",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 2.5,
+                "to": 3.5,
+                "result": {
+                  "text": "C \u00b7 velocity (fraud ring)",
+                  "color": "#c98500",
+                  "index": 3
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 3.5,
+                "to": 4.5,
+                "result": {
+                  "text": "U \u00b7 universal shift",
+                  "color": "#d55181",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3987e5",
+                "value": null
+              },
+              {
+                "color": "#d95926",
+                "value": 0.5
+              },
+              {
+                "color": "#199e70",
+                "value": 1.5
+              },
+              {
+                "color": "#c98500",
+                "value": 2.5
+              },
+              {
+                "color": "#d55181",
+                "value": 3.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "5 \u00b7 Live F2 score",
+      "description": "F2 over a 45 s window. The white line is the overall score; colored lines are per model. Watch it dip when drift starts and recover after the switch.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "5*(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) / (5*(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) + 4*(sum(increase(fraud_labeled_outcomes_total{outcome=\"fn\"}[45s])) or vector(0)) + (sum(increase(fraud_labeled_outcomes_total{outcome=\"fp\"}[45s])) or vector(0)))",
+          "legendFormat": "Overall",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "5*sum by (served_by)(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) / (5*sum by (served_by)(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) + 4*sum by (served_by)(increase(fraud_labeled_outcomes_total{outcome=\"fn\"}[45s])) + sum by (served_by)(increase(fraud_labeled_outcomes_total{outcome=\"fp\"}[45s])))",
+          "legendFormat": "{{served_by}}",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overall"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ffffff"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-detection-model"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-universal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "6 \u00b7 Precision and recall",
+      "description": "Precision: share of flagged transactions that are fraud. Recall: share of fraud that gets caught.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) / ((sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) + (sum(increase(fraud_labeled_outcomes_total{outcome=\"fp\"}[45s])) or vector(0)))",
+          "legendFormat": "Precision",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "(sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) / ((sum(increase(fraud_labeled_outcomes_total{outcome=\"tp\"}[45s])) or vector(0)) + (sum(increase(fraud_labeled_outcomes_total{outcome=\"fn\"}[45s])) or vector(0)))",
+          "legendFormat": "Recall",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Precision"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ffffff"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Recall"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "7 \u00b7 Traffic share by model",
+      "description": "Requests per second answered by each model.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum by (served_by)(rate(fraud_predictions_total[30s]))",
+          "legendFormat": "{{served_by}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-detection-model"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-B"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-spec-C"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-universal"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d55181"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "8 \u00b7 Inference latency (p95)",
+      "description": "95th-percentile time to score one transaction inside the API.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 28,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le)(rate(fraud_prediction_latency_seconds_bucket[1m]))) * 1000",
+          "legendFormat": "p95 latency",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "ms",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 latency"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c3c2b7"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Route switches",
+      "description": "Automatic model switches in the selected time range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 28,
+        "w": 4,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(increase(fraud_route_switches_total[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Orchestrator API errors",
+      "description": "Failed routing calls from the orchestrator to the API. Should stay at 0.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 28,
+        "w": 4,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(orch_api_errors_total) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
