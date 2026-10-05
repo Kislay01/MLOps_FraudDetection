@@ -1,0 +1,5 @@
+outs:
+- md5: d3f584a3197dd1a9c470644698895c6d
+  size: 827053
+  hash: md5
+  path: zoo_universal.pkl

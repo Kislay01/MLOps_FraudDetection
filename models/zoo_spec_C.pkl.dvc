@@ -1,0 +1,5 @@
+outs:
+- md5: f829427d0fb660775cadc11d132b1ac3
+  size: 917161
+  hash: md5
+  path: zoo_spec_C.pkl

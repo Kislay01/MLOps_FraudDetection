@@ -1,2 +1,6 @@
 /xgb_fraud_model_v1.pkl
 /xgb_fraud_model_v2_retrained.pkl
+/zoo_spec_A.pkl
+/zoo_spec_B.pkl
+/zoo_spec_C.pkl
+/zoo_universal.pkl
