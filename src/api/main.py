@@ -22,6 +22,8 @@ import time
 from datetime import datetime, timezone
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
+FRAUD_THRESHOLD = 0.6210  
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -153,7 +155,7 @@ def _predict_with_slot(slot, record: Dict[str, Any]):
     row = {col: record.get(col, 0) for col in slot["feature_names"]}
     df = pd.DataFrame([row])
     proba = float(slot["model"].predict_proba(df)[0, 1])
-    prediction = int(proba >= 0.5)
+    prediction = int(proba >= FRAUD_THRESHOLD)
     return proba, prediction
 
 

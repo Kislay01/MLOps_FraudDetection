@@ -55,7 +55,7 @@ def main():
         actual_fraud = record.get('isFraud')
 
         proba = predict_single(model, record, feature_cols)
-        predicted_fraud = 1 if proba >= 0.5 else 0
+        predicted_fraud = 1 if proba >= 0.6210 else 0
 
         processed += 1
         if predicted_fraud == 1:
