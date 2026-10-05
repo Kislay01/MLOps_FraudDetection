@@ -1,0 +1,5 @@
+outs:
+- md5: 1b5f17d333db2d9cc49943ebe71da13a
+  size: 249766
+  hash: md5
+  path: fingerprinter.pkl
