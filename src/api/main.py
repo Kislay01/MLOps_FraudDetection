@@ -181,6 +181,8 @@ async def lifespan(app: FastAPI):
     if DEFAULT_MODEL not in slots:
         raise RuntimeError(f"Default model {DEFAULT_MODEL} could not be loaded")
     _publish_state()
+    for _n in slots:
+        _predict_with_slot(slots[_n], {})
     _record("startup", state["active"], "service start")
     yield
 

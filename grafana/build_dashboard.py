@@ -248,6 +248,28 @@ panels += [
           {}),
 ]
 
+panels += [
+    ts("12 · Guardrail: live F2 of the serving model", 0, 42, 12, 8,
+       [tgt("orch_guardrail_f2 >= 0", "F2 since routed in", "A"), tgt("orch_guardrail_floor", "Rollback floor", "B")],
+       "F2 of the serving model over its last 200 labeled transactions, counted only from the moment it was "
+       "routed in. Shown once there is enough evidence (150 rows, 10 frauds). If a specialist or the universal "
+       "model stays below the dashed floor for two checks while drift is active, the orchestrator rolls it "
+       "back automatically.",
+       overrides=[color_ov("F2 since routed in", WHITE, 3), dashed_ov("Rollback floor", CRIT)], minv=0, maxv=1),
+    panel("stat", "Guardrail status", 12, 42, 6, 8, [tgt("orch_guardrail_f2", instant=True)],
+          "Live F2 of the serving model since it was routed in, against the 0.5 floor. Collecting evidence means "
+          "too few labeled rows so far.",
+          {**STAT_OPTS, "colorMode": "background"},
+          {"unit": "none", "decimals": 2, "min": 0, "max": 1, "color": {"mode": "thresholds"},
+           "mappings": [{"type": "range", "options": {"from": -1.5, "to": -0.5,
+                         "result": {"text": "Collecting evidence", "color": MUTED, "index": 0}}}],
+           "thresholds": {"mode": "absolute",
+                          "steps": [{"color": CRIT, "value": None}, {"color": GOOD, "value": 0.5}]}}),
+    stat_plain("Guardrail rollbacks", 18, 42, 6, 8, "sum(increase(orch_guardrail_total[$__range]))",
+               "Times the guardrail rolled a failing model back automatically in the selected time range.",
+               decimals=0),
+]
+
 dashboard = {
     "uid": "fraudar-routing",
     "title": "Fraudar · Live Drift Routing",
@@ -263,6 +285,10 @@ dashboard = {
         "datasource": DS, "enable": True, "name": "Route switches", "iconColor": WHITE,
         "expr": "increase(fraud_route_switches_total[10s]) > 0", "step": "5s",
         "titleFormat": "Route switch", "textFormat": "{{from_model}} → {{to_model}}",
+    }, {
+        "datasource": DS, "enable": True, "name": "Guardrail rollbacks", "iconColor": CRIT,
+        "expr": "increase(orch_guardrail_total[10s]) > 0", "step": "5s",
+        "titleFormat": "Guardrail rollback", "textFormat": "{{model}} fell below its F2 floor",
     }]},
     "panels": panels,
 }
