@@ -26,7 +26,7 @@
         "enable": true,
         "name": "Route switches",
         "iconColor": "#ffffff",
-        "expr": "increase(fraud_route_switches_total[15s]) > 0",
+        "expr": "increase(fraud_route_switches_total[10s]) > 0",
         "step": "5s",
         "titleFormat": "Route switch",
         "textFormat": "{{from_model}} \u2192 {{to_model}}"
@@ -802,7 +802,8 @@
             "lineWidth": 0
           },
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "#898781"
           },
           "mappings": [
             {
@@ -865,32 +866,7 @@
                 }
               }
             }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#3987e5",
-                "value": null
-              },
-              {
-                "color": "#d95926",
-                "value": 0.5
-              },
-              {
-                "color": "#199e70",
-                "value": 1.5
-              },
-              {
-                "color": "#c98500",
-                "value": 2.5
-              },
-              {
-                "color": "#d55181",
-                "value": 3.5
-              }
-            ]
-          }
+          ]
         },
         "overrides": []
       }
@@ -953,7 +929,8 @@
             "lineWidth": 0
           },
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "#898781"
           },
           "mappings": [
             {
@@ -1016,32 +993,7 @@
                 }
               }
             }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#3987e5",
-                "value": null
-              },
-              {
-                "color": "#d95926",
-                "value": 0.5
-              },
-              {
-                "color": "#199e70",
-                "value": 1.5
-              },
-              {
-                "color": "#c98500",
-                "value": 2.5
-              },
-              {
-                "color": "#d55181",
-                "value": 3.5
-              }
-            ]
-          }
+          ]
         },
         "overrides": []
       }
@@ -1632,6 +1584,232 @@
           },
           "decimals": 0
         },
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "9 \u00b7 Fraud flag rate",
+      "description": "Share of transactions the serving model flags as fraud. It rises during a drift because the injected fraud raises the true fraud rate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(rate(fraud_predictions_total{predicted_class=\"1\"}[1m])) / sum(rate(fraud_predictions_total[1m]))",
+          "legendFormat": "Flagged as fraud",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "percentunit",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Flagged as fraud"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ffffff"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "10 \u00b7 Predictions by class",
+      "description": "Requests per second predicted legitimate (class 0) versus fraud (class 1).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 35,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum by (predicted_class)(rate(fraud_predictions_total[30s]))",
+          "legendFormat": "class {{predicted_class}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "class 0"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "class 1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ffffff"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 19,
+      "type": "heatmap",
+      "title": "11 \u00b7 Prediction confidence distribution",
+      "description": "How sure the serving model is about each transaction, from 0 (legitimate) to 1 (fraud). Brighter cells mean more transactions at that confidence.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 35,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum by (le)(increase(fraud_prediction_confidence_bucket{le!='+Inf'}[1m]))",
+          "legendFormat": "{{le}}",
+          "refId": "A",
+          "instant": false,
+          "range": true,
+          "format": "heatmap"
+        }
+      ],
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "yAxis": {
+          "axisPlacement": "left"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Blues",
+          "fill": "dark-blue",
+          "scale": "exponential",
+          "exponent": 0.5,
+          "steps": 64,
+          "reverse": false
+        },
+        "legend": {
+          "show": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "yHistogram": false
+        },
+        "rowsFrame": {
+          "layout": "auto"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
         "overrides": []
       }
     }

@@ -119,23 +119,13 @@ def range_map(m):
         "from": k - 0.5, "to": k + 0.5, "result": {"text": t, "color": c, "index": k}}}
         for k, (t, c) in m.items()]
 
-
-def threshold_steps(m):
-    colors = [c for _, (t, c) in sorted(m.items())]
-    steps = [{"color": colors[0], "value": None}]
-    for k in range(1, len(colors)):
-        steps.append({"color": colors[k], "value": k - 0.5})
-    return {"mode": "absolute", "steps": steps}
-
-
 def timeline(title, x, y, w, h, targets, mapping, desc):
     opts = {"mergeValues": True, "showValue": "auto", "alignValue": "center", "rowHeight": 0.85,
             "legend": {"showLegend": False}, "tooltip": {"mode": "single"}}
-    d = {"custom": {"fillOpacity": 85, "lineWidth": 0}, "color": {"mode": "thresholds"},
-         "mappings": range_map(mapping), "thresholds": threshold_steps(mapping)}
+    d = {"custom": {"fillOpacity": 85, "lineWidth": 0}, "color": fixed(MUTED),
+         "mappings": range_map(mapping)}
     return panel("state-timeline", title, x, y, w, h, targets, desc, opts, d)
 
-# ---- PromQL helpers: live confusion-matrix metrics -> F2 / precision / recall ----
 def oc(outcome, by=False, win="45s"):
     g = " by (served_by)" if by else ""
     return f'sum{g}(increase(fraud_labeled_outcomes_total{{outcome="{outcome}"}}[{win}]))'
@@ -234,6 +224,30 @@ panels = [
                "Failed routing calls from the orchestrator to the API. Should stay at 0.", decimals=0),
 ]
 
+panels += [
+    ts("9 · Fraud flag rate", 0, 35, 8, 7,
+       [tgt('sum(rate(fraud_predictions_total{predicted_class="1"}[1m])) / sum(rate(fraud_predictions_total[1m]))',
+            "Flagged as fraud")],
+       "Share of transactions the serving model flags as fraud. It rises during a drift because the "
+       "injected fraud raises the true fraud rate.",
+       unit="percentunit", overrides=[color_ov("Flagged as fraud", WHITE)], minv=0),
+    ts("10 · Predictions by class", 8, 35, 8, 7,
+       [tgt("sum by (predicted_class)(rate(fraud_predictions_total[30s]))", "class {{predicted_class}}")],
+       "Requests per second predicted legitimate (class 0) versus fraud (class 1).",
+       unit="reqps", stack=True, fill=60,
+       overrides=[color_ov("class 0", MUTED), color_ov("class 1", WHITE)]),
+    panel("heatmap", "11 · Prediction confidence distribution", 16, 35, 8, 7,
+          [{**tgt("sum by (le)(increase(fraud_prediction_confidence_bucket{le!='+Inf'}[1m]))", "{{le}}"), "format": "heatmap"}],
+          "How sure the serving model is about each transaction, from 0 (legitimate) to 1 (fraud). "
+          "Brighter cells mean more transactions at that confidence.",
+          {"calculate": False, "cellGap": 1, "yAxis": {"axisPlacement": "left"},
+           "color": {"mode": "scheme", "scheme": "Blues", "fill": "dark-blue", "scale": "exponential",
+                     "exponent": 0.5, "steps": 64, "reverse": False},
+           "legend": {"show": False}, "tooltip": {"mode": "single", "yHistogram": False},
+           "rowsFrame": {"layout": "auto"}},
+          {}),
+]
+
 dashboard = {
     "uid": "fraudar-routing",
     "title": "Fraudar · Live Drift Routing",
@@ -247,7 +261,7 @@ dashboard = {
     "templating": {"list": []},
     "annotations": {"list": [{
         "datasource": DS, "enable": True, "name": "Route switches", "iconColor": WHITE,
-        "expr": "increase(fraud_route_switches_total[15s]) > 0", "step": "5s",
+        "expr": "increase(fraud_route_switches_total[10s]) > 0", "step": "5s",
         "titleFormat": "Route switch", "textFormat": "{{from_model}} → {{to_model}}",
     }]},
     "panels": panels,

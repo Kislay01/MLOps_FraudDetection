@@ -103,6 +103,16 @@ def _publish_state():
     for name in SLOT_ALIASES:
         ACTIVE_MODEL.labels(model=name).set(1 if name == state["active"] else 0)
     CANARY_WEIGHT.set(state["canary_weight"] if state["canary"] else 0.0)
+    # pre-create counter series at 0 so Prometheus increase()/rate() count the first event
+    for a in SLOT_ALIASES:
+        for o in ("tp", "fp", "tn", "fn"):
+            LABELED_OUTCOMES.labels(served_by=a, outcome=o).inc(0)
+        for b in SLOT_ALIASES:
+            if a != b:
+                ROUTE_SWITCHES.labels(from_model=a, to_model=b).inc(0)
+        if a in slots:
+            for c in ("0", "1"):
+                PREDICTION_COUNT.labels(served_by=a, model_version=slots[a]["version"], predicted_class=c).inc(0)
 
 
 def _record(event: str, model: str, reason: str, weight: float = 1.0):
