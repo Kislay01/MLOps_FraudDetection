@@ -1830,7 +1830,7 @@
       "id": 20,
       "type": "timeseries",
       "title": "12 \u00b7 Guardrail: live F2 of the serving model",
-      "description": "F2 of the serving model over its last 200 labeled transactions, counted only from the moment it was routed in. Shown once there is enough evidence (150 rows, 10 frauds). If a specialist or the universal model stays below the dashed floor for two checks while drift is active, the orchestrator rolls it back automatically.",
+      "description": "F2 of the serving model over its last 200 labeled transactions, counted only from the moment it was routed in. Shown once there is enough evidence (150 rows, 10 frauds). If a specialist or the universal model stays below the dashed floor and misses most fraud (recall under 0.5) for two checks while drift is active, the orchestrator rolls it back automatically.",
       "datasource": {
         "type": "prometheus",
         "uid": "fraudar-prom"

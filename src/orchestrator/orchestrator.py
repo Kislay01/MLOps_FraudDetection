@@ -88,6 +88,7 @@ def main():
     ap.add_argument("--min-rows", type=int, default=150)
     ap.add_argument("--min-pos", type=int, default=10)
     ap.add_argument("--guard-strikes", type=int, default=2)
+    ap.add_argument("--recall-floor", type=float, default=0.5, help="guardrail also needs recall below this")
     a = ap.parse_args()
 
     os.makedirs("logs", exist_ok=True)
@@ -157,7 +158,10 @@ def main():
             enough = (rec.get("n", 0) >= a.min_rows and rec.get("positives", 0) >= a.min_pos
                       and rec.get("f2") is not None)
             GUARD_F2.set(rec["f2"] if enough else -1)
-            bad = enough and act in FALLBACK and label != "normal" and rec["f2"] < a.floor
+            pos = rec.get("tp", 0) + rec.get("fn", 0)
+            recall = rec["tp"] / pos if pos else 1.0
+            bad = (enough and act in FALLBACK and label != "normal"
+                   and rec["f2"] < a.floor and recall < a.recall_floor)
             strikes = strikes + 1 if bad else 0
             if strikes >= a.guard_strikes:
                 fb = FALLBACK[act]

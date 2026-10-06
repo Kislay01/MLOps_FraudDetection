@@ -126,5 +126,9 @@ case "${1:-}" in
     start scenario $PY -u -m src.streaming.inject --scenario demo --hold 45 --gap 40
     echo "  runs about 6 minutes; follow it with: ./scripts/demo.sh logs scenario" ;;
   wrongmodel) wrongmodel ;;
+  panel)
+    start panel .venv/bin/uvicorn src.control.panel:app --host 127.0.0.1 --port 8100
+    echo "  control room: http://localhost:8100" ;;
+  panel-stop) stop panel ;;
   *) sed -n '2,3p' "$0" ;;
 esac

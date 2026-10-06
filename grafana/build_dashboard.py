@@ -253,7 +253,7 @@ panels += [
        [tgt("orch_guardrail_f2 >= 0", "F2 since routed in", "A"), tgt("orch_guardrail_floor", "Rollback floor", "B")],
        "F2 of the serving model over its last 200 labeled transactions, counted only from the moment it was "
        "routed in. Shown once there is enough evidence (150 rows, 10 frauds). If a specialist or the universal "
-       "model stays below the dashed floor for two checks while drift is active, the orchestrator rolls it "
+       "model stays below the dashed floor and misses most fraud (recall under 0.5) for two checks while drift is active, the orchestrator rolls it "
        "back automatically.",
        overrides=[color_ov("F2 since routed in", WHITE, 3), dashed_ov("Rollback floor", CRIT)], minv=0, maxv=1),
     panel("stat", "Guardrail status", 12, 42, 6, 8, [tgt("orch_guardrail_f2", instant=True)],
