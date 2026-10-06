@@ -32,6 +32,26 @@ BREADTH_THRESHOLD = Gauge("orch_breadth_threshold", "Breadth alarm threshold")
 WINDOWS = Counter("orch_windows_total", "Windows evaluated")
 DECISIONS = Counter("orch_decisions_total", "Routing decisions", ["event"])
 API_ERRORS = Counter("orch_api_errors_total", "Failed API admin calls")
+GUARDRAIL = Counter("orch_guardrail_total", "Guardrail rollbacks", ["model"])
+GUARD_F2 = Gauge("orch_guardrail_f2", "Live F2 of the active model since it was routed in (-1 = not enough rows)")
+GUARD_FLOOR = Gauge("orch_guardrail_floor", "Guardrail F2 floor")
+FALLBACK = {
+    "fraud-spec-A": "fraud-universal",
+    "fraud-spec-B": "fraud-universal",
+    "fraud-spec-C": "fraud-universal",
+    "fraud-universal": "fraud-detection-model",
+}
+
+
+def guard_status(api):
+    try:
+        r = requests.get(f"{api}/admin/performance", timeout=5)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        API_ERRORS.inc()
+        print(f"  !! performance call failed: {e}", flush=True)
+        return None
 
 
 def df_from(records, cols):
@@ -64,6 +84,10 @@ def main():
     ap.add_argument("--recover", type=int, default=3)
     ap.add_argument("--group", default=f"orchestrator-{int(time.time())}")
     ap.add_argument("--metrics-port", type=int, default=8001)
+    ap.add_argument("--floor", type=float, default=0.5, help="guardrail F2 floor")
+    ap.add_argument("--min-rows", type=int, default=150)
+    ap.add_argument("--min-pos", type=int, default=10)
+    ap.add_argument("--guard-strikes", type=int, default=2)
     a = ap.parse_args()
 
     os.makedirs("logs", exist_ok=True)
@@ -79,6 +103,13 @@ def main():
         DETECTED.labels(label=lab).set(1 if lab == "normal" else 0)
 
     set_route(a.api, ROUTES["normal"], "orchestrator start")
+    GUARD_FLOOR.set(a.floor)
+    GUARD_F2.set(-1)
+    for m in FALLBACK:
+        GUARDRAIL.labels(model=m).inc(0)
+    for ev in ("switch", "recover", "guardrail"):
+        DECISIONS.labels(event=ev).inc(0)
+    strikes = 0
 
     consumer = KafkaConsumer(
         TOPIC, bootstrap_servers=KAFKA, auto_offset_reset="latest", group_id=a.group,
@@ -118,6 +149,26 @@ def main():
             set_route(a.api, d["route"], reason)
             DECISIONS.labels(event=d["event"]).inc()
 
+        perf = guard_status(a.api)
+        guard_event = None
+        if perf:
+            act = perf["active"]
+            rec = perf["slots"].get(act) or {}
+            enough = (rec.get("n", 0) >= a.min_rows and rec.get("positives", 0) >= a.min_pos
+                      and rec.get("f2") is not None)
+            GUARD_F2.set(rec["f2"] if enough else -1)
+            bad = enough and act in FALLBACK and label != "normal" and rec["f2"] < a.floor
+            strikes = strikes + 1 if bad else 0
+            if strikes >= a.guard_strikes:
+                fb = FALLBACK[act]
+                why = f"guardrail: F2 {rec['f2']:.2f} < {a.floor} on last {rec['n']} rows"
+                if set_route(a.api, fb, why):
+                    GUARDRAIL.labels(model=act).inc()
+                    DECISIONS.labels(event="guardrail").inc()
+                    guard_event = f"{act} -> {fb} (F2 {rec['f2']:.2f})"
+                    print(f"[rows {seen}] GUARDRAIL rollback {guard_event}", flush=True)
+                strikes = 0
+
         if label == "normal" and policy.state == "normal":
             clean_buf.extend(since)
             fp.set_reference(df_from(clean_buf, cols))
@@ -135,6 +186,7 @@ def main():
             "timestamp": datetime.now(timezone.utc).isoformat(), "rows_seen": seen, "label": label,
             "event": d["event"], "state": policy.state, "route": d["route"],
             "scores": {g: round(s[g], 3) for g in GROUPS}, "breadth": s["breadth"],
+            "active": perf["active"] if perf else None, "guardrail": guard_event,
         }
         with open(DECISIONS_LOG, "a") as f:
             f.write(json.dumps(entry) + "\n")

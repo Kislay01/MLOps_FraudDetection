@@ -94,9 +94,32 @@ def _load_slot(name: str):
         "alias": alias,
         "threshold": float(tags.get("threshold", FRAUD_THRESHOLD)),
         "kind": tags.get("drift_type", tags.get("role", "normal")),
-        "feature_names": model.get_booster().feature_names,
+        "feature_names": _single_thread(model),
     }
     logger.info(f"Loaded {name}@{alias}: v{mv.version}, threshold {slots[name]['threshold']}")
+
+
+from collections import deque as _deque
+
+PERF_WINDOW = 200
+perf = {}
+
+
+def _perf_f2(outcomes):
+    c = {k: 0 for k in ("tp", "fp", "tn", "fn")}
+    for o in outcomes:
+        c[o] += 1
+    denom = 5 * c["tp"] + 4 * c["fn"] + c["fp"]
+    return {"n": len(outcomes), "positives": c["tp"] + c["fn"], **c,
+            "f2": (5 * c["tp"] / denom) if denom else None}
+
+
+def _single_thread(model):
+    """One predict thread per request: concurrent requests would otherwise oversubscribe the CPU."""
+    model.set_params(n_jobs=1)
+    booster = model.get_booster()
+    booster.set_param({"nthread": 1})
+    return booster.feature_names
 
 
 def _publish_state():
@@ -126,6 +149,7 @@ def _cutover(model: str, reason: str):
         state["previous"] = old
         state["active"] = model
         ROUTE_SWITCHES.labels(from_model=old, to_model=model).inc()
+        perf[model] = _deque(maxlen=PERF_WINDOW)
     state["canary"], state["canary_weight"] = None, 0.0
     _record("cutover", model, reason)
     _publish_state()
@@ -208,6 +232,14 @@ def get_slots():
     }
 
 
+@app.get("/admin/performance")
+def performance():
+    """Rolling confusion counts and F2 per model over its last PERF_WINDOW labeled rows.
+    The window is cleared whenever a model is routed in, so only rows served since the switch count."""
+    return {"active": state["active"], "window": PERF_WINDOW,
+            "slots": {n: _perf_f2(list(perf.get(n, ()))) for n in slots}}
+
+
 @app.post("/admin/route")
 def route(req: RouteRequest):
     """weight>=1: full cutover. 0<weight<1: canary share. weight<=0: clear canary."""
@@ -246,10 +278,16 @@ def reload_slot(req: ReloadRequest):
     return {"model": req.model, "version": slots[req.model]["version"]}
 
 
+import numpy as np
+
+
 def _predict_with_slot(slot, record: Dict[str, Any]):
-    row = {col: record.get(col, 0) for col in slot["feature_names"]}
-    df = pd.DataFrame([row])
-    proba = float(slot["model"].predict_proba(df)[0, 1])
+    names = slot["feature_names"]
+    x = np.empty((1, len(names)), dtype=np.float32)
+    for i, col in enumerate(names):
+        v = record.get(col, 0)
+        x[0, i] = np.nan if v is None else v
+    proba = float(slot["model"].predict_proba(x)[0, 1])
     return proba, int(proba >= slot["threshold"])
 
 
@@ -271,6 +309,7 @@ def predict(transaction: Transaction):
     if transaction.label is not None:
         outcome = {(1, 1): "tp", (1, 0): "fp", (0, 0): "tn", (0, 1): "fn"}[(prediction, int(transaction.label))]
         LABELED_OUTCOMES.labels(served_by=name, outcome=outcome).inc()
+        perf.setdefault(name, _deque(maxlen=PERF_WINDOW)).append(outcome)
 
     log_prediction_audit(transaction.data, proba, prediction, name, slot, transaction.label)
 

@@ -1,0 +1,9 @@
+switch_utc,from,to,f2_before,fraud_before,f2_after,fraud_after
+12:06:25,fraud-detection-model,fraud-spec-A,0.026,95,0.99,98
+12:07:15,fraud-spec-A,fraud-detection-model,0.488,9,0.678,11
+12:07:45,fraud-detection-model,fraud-spec-B,0.13,100,0.963,99
+12:08:45,fraud-spec-B,fraud-detection-model,0.263,3,0.152,3
+12:09:10,fraud-detection-model,fraud-spec-C,0.156,98,0.927,103
+12:10:10,fraud-spec-C,fraud-detection-model,0.312,9,0.143,4
+12:10:30,fraud-detection-model,fraud-universal,0.105,101,0.966,94
+12:11:40,fraud-universal,fraud-detection-model,0.0,1,0.0,3
