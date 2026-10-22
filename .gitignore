@@ -22,5 +22,5 @@ mlflow.db
 mlruns/
 
 logs/
-control/
+/control/
 .run/
