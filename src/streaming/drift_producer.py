@@ -1,5 +1,6 @@
 """Live drift-injecting producer: replays the stable validation segment at a constant rate
-and applies the drift mode currently set in control/drift_mode.json."""
+and applies the drift mode currently set in control/drift_mode.json.
+By default the segment is replayed in a loop so the demo never runs dry; use --once to stop after one pass."""
 import argparse
 import json
 import pathlib
@@ -41,12 +42,14 @@ def main():
     ap.add_argument("--rows", type=int, default=30000)
     ap.add_argument("--batch", type=int, default=50)
     ap.add_argument("--metrics-port", type=int, default=8002)
+    ap.add_argument("--once", action="store_true", help="stop after one pass instead of looping")
     a = ap.parse_args()
 
     train = joblib.load("data/processed/train_processed_v2.pkl")
     ref = train.iloc[-40000:]
     val = joblib.load("data/processed/val_processed_v2.pkl")
     df = val.iloc[:a.rows].reset_index(drop=True)
+    n = len(df)
 
     CONTROL.parent.mkdir(exist_ok=True)
     CONTROL.write_text(json.dumps({"mode": "normal", "frac": 0.3}))
@@ -61,16 +64,17 @@ def main():
 
     interval = 1.0 / a.tps
     next_t = time.time()
-    sent, last_mode = 0, None
-    print(f"Streaming {len(df)} rows at {a.tps} tps; warm-up {a.warmup} rows (no injection).")
+    sent, last_mode, pos = 0, None, 0
+    mode_txt = "one pass" if a.once else "looping"
+    print(f"Streaming {n} rows at {a.tps} tps ({mode_txt}); warm-up {a.warmup} rows (no injection).", flush=True)
 
-    for i in range(0, len(df), a.batch):
-        chunk = df.iloc[i:i + a.batch]
+    while True:
+        chunk = df.iloc[pos:pos + a.batch]
         mode, frac = read_control()
         if sent < a.warmup:
             mode = "normal"
         if mode != "normal":
-            chunk = apply_drift(chunk, mode, ref, frac=frac, seed=i)
+            chunk = apply_drift(chunk, mode, ref, frac=frac, seed=sent)
         if mode != last_mode:
             print(f"[row {sent}] injection mode -> {mode}", flush=True)
             publish_mode(mode)
@@ -83,8 +87,14 @@ def main():
             delay = next_t - time.time()
             if delay > 0:
                 time.sleep(delay)
-        if sent == a.warmup:
-            print(f"[row {sent}] warm-up complete; injection enabled", flush=True)
+            if sent == a.warmup:
+                print(f"[row {sent}] warm-up complete; injection enabled", flush=True)
+        pos += a.batch
+        if pos >= n:
+            if a.once:
+                break
+            pos = 0
+            print(f"[row {sent}] replaying segment from the start", flush=True)
 
     producer.flush()
     publish_mode("normal")
