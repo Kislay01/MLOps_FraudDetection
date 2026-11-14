@@ -4,7 +4,9 @@ import mlflow
 import mlflow.xgboost
 from mlflow.tracking import MlflowClient
 
-mlflow.set_tracking_uri("http://localhost:5000")
+from src.settings import MLFLOW_URI
+
+mlflow.set_tracking_uri(MLFLOW_URI)
 mlflow.set_experiment("fraudar-model-zoo")
 client = MlflowClient()
 

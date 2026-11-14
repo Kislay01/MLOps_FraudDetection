@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN, LOGS = ROOT / ".run", ROOT / "logs" / "run"
-API, MLFLOW = "http://localhost:8000", "http://localhost:5000"
+from src.settings import API_URL as API, MLFLOW_URI as MLFLOW
 ACTIONS = {
     "up": ["up"], "restart": ["restart"], "down": ["down"],
     "scenario": ["scenario"], "wrongmodel": ["wrongmodel"], "clear": ["clear"],

@@ -97,6 +97,7 @@ wrongmodel() {
   wait_active fraud-spec-A 90 || { echo "FAIL: router never switched to fraud-spec-A"; return 1; }
   echo "  router chose fraud-spec-A; settling 10 s"; sleep 10
   curl -sf -X POST "$API/admin/route" -H 'Content-Type: application/json' \
+    -H "X-Admin-Token: ${FRAUDAR_ADMIN_TOKEN:-}" \
     -d '{"model":"fraud-spec-C","reason":"wrong-model test"}' > /dev/null
   echo "  forced fraud-spec-C (wrong model for drift A)"
   local t0; t0=$(date +%s)

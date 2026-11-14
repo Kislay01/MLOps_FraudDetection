@@ -15,8 +15,8 @@ from prometheus_client import Counter, Gauge, start_http_server
 
 from src.router.fingerprint import GROUPS, classify
 from src.router.policy import ROUTES, RoutingPolicy
+from src.settings import API_URL, KAFKA, admin_headers
 
-KAFKA = "localhost:9092"
 TOPIC = "transactions"
 DECISIONS_LOG = "logs/decisions.jsonl"
 GROUP_THR, BREADTH_THR = 1.25, 20
@@ -65,7 +65,8 @@ def publish_state(state):
 
 def set_route(api, model, reason):
     try:
-        r = requests.post(f"{api}/admin/route", json={"model": model, "weight": 1.0, "reason": reason}, timeout=5)
+        r = requests.post(f"{api}/admin/route", json={"model": model, "weight": 1.0, "reason": reason},
+                          headers=admin_headers(), timeout=5)
         r.raise_for_status()
         return True
     except Exception as e:
@@ -76,7 +77,7 @@ def set_route(api, model, reason):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--api", default="http://localhost:8000")
+    ap.add_argument("--api", default=API_URL)
     ap.add_argument("--window", type=int, default=1000)
     ap.add_argument("--step", type=int, default=250)
     ap.add_argument("--ref", type=int, default=5000)

@@ -11,6 +11,7 @@ Exposes Prometheus metrics, including per-model labeled confusion counts.
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+import hmac
 import json
 import logging
 import os
@@ -20,7 +21,7 @@ import time
 import mlflow
 import mlflow.xgboost
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import Response
 from mlflow import MlflowClient
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
@@ -31,7 +32,7 @@ FRAUD_THRESHOLD = 0.6210  # fallback if a model version has no threshold tag
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MLFLOW_TRACKING_URI = "http://localhost:5000"
+from src.settings import ADMIN_TOKEN, MLFLOW_URI as MLFLOW_TRACKING_URI
 DEFAULT_MODEL = "fraud-detection-model"
 SLOT_ALIASES = {
     "fraud-detection-model": "champion",
@@ -77,6 +78,12 @@ LABELED_OUTCOMES = Counter(
 ACTIVE_MODEL = Gauge("fraud_active_model", "1 if the model is the active route, else 0", ["model"])
 CANARY_WEIGHT = Gauge("fraud_canary_weight", "Fraction of traffic sent to the canary model")
 ROUTE_SWITCHES = Counter("fraud_route_switches_total", "Active-model switches", ["from_model", "to_model"])
+
+
+def require_admin(x_admin_token: Optional[str] = Header(default=None)):
+    """Admin writes need the token when FRAUDAR_ADMIN_TOKEN is set; open otherwise (local demo)."""
+    if ADMIN_TOKEN and not hmac.compare_digest(x_admin_token or "", ADMIN_TOKEN):
+        raise HTTPException(status_code=401, detail="Missing or wrong X-Admin-Token")
 
 
 def _now():
@@ -242,7 +249,7 @@ def performance():
             "slots": {n: _perf_f2(list(perf.get(n, ()))) for n in slots}}
 
 
-@app.post("/admin/route")
+@app.post("/admin/route", dependencies=[Depends(require_admin)])
 def route(req: RouteRequest):
     """weight>=1: full cutover. 0<weight<1: canary share. weight<=0: clear canary."""
     if req.model not in slots:
@@ -262,7 +269,7 @@ def route(req: RouteRequest):
     return {"active": state["active"], "canary": state["canary"], "canary_weight": state["canary_weight"]}
 
 
-@app.post("/admin/rollback")
+@app.post("/admin/rollback", dependencies=[Depends(require_admin)])
 def rollback():
     if not state["previous"]:
         raise HTTPException(status_code=400, detail="No previous model to roll back to")
@@ -270,7 +277,7 @@ def rollback():
     return {"active": state["active"], "previous": state["previous"]}
 
 
-@app.post("/admin/reload")
+@app.post("/admin/reload", dependencies=[Depends(require_admin)])
 def reload_slot(req: ReloadRequest):
     """Reload a slot from the registry (e.g. after a new version gets the alias)."""
     if req.model not in SLOT_ALIASES:

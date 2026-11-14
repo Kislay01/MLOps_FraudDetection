@@ -10,7 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from kafka import KafkaConsumer
 
-KAFKA = "localhost:9092"
+from src.settings import API_URL, KAFKA
+
 TOPIC = "transactions"
 OUTCOME = {(1, 1): "tp", (1, 0): "fp", (0, 0): "tn", (0, 1): "fn"}
 _local = threading.local()
@@ -43,7 +44,7 @@ def kafka_lag(consumer):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--api", default="http://localhost:8000")
+    ap.add_argument("--api", default=API_URL)
     ap.add_argument("--group", default=f"scoring-{int(time.time())}")
     ap.add_argument("--workers", type=int, default=8)
     a = ap.parse_args()

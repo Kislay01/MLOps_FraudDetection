@@ -11,8 +11,8 @@ from kafka import KafkaProducer
 from prometheus_client import Counter, Gauge, start_http_server
 
 from src.drift.drift_generators import DRIFT_NAMES, apply_drift
+from src.settings import KAFKA
 
-KAFKA = "localhost:9092"
 TOPIC = "transactions"
 CONTROL = pathlib.Path("control/drift_mode.json")
 MODES = ["normal"] + list(DRIFT_NAMES)
