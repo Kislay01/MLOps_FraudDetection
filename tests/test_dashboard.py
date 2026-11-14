@@ -17,7 +17,7 @@ def load():
 
 def exprs():
     d = load()
-    out = [t["expr"] for p in d["panels"] for t in p["targets"]]
+    out = [t["expr"] for p in d["panels"] for t in p.get("targets", [])]
     out += [a["expr"] for a in d["annotations"]["list"]]
     return [e.replace("$__range", "5m") for e in out]
 

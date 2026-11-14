@@ -82,6 +82,9 @@ LABELED_OUTCOMES = Counter(
 ACTIVE_MODEL = Gauge("fraud_active_model", "1 if the model is the active route, else 0", ["model"])
 CANARY_WEIGHT = Gauge("fraud_canary_weight", "Fraction of traffic sent to the canary model")
 ROUTE_SWITCHES = Counter("fraud_route_switches_total", "Active-model switches", ["from_model", "to_model"])
+ALERTS_RECEIVED = Counter("fraud_alerts_received_total", "Alert notifications received from Alertmanager",
+                          ["alertname", "status"])
+alerts: list = []
 
 
 def require_admin(x_admin_token: Optional[str] = Header(default=None)):
@@ -251,6 +254,25 @@ def health_check():
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post("/alerts/webhook")
+def alert_webhook(payload: Dict[str, Any]):
+    """Alertmanager webhook receiver: keeps the latest 100 notifications for the control room."""
+    for a in (payload.get("alerts") or [])[:50]:
+        lab, ann = a.get("labels") or {}, a.get("annotations") or {}
+        name, status = str(lab.get("alertname", "unknown"))[:80], str(a.get("status", "firing"))[:16]
+        alerts.append({"received": _now(), "alertname": name, "status": status,
+                       "severity": str(lab.get("severity", ""))[:16], "summary": str(ann.get("summary", ""))[:200],
+                       "description": str(ann.get("description", ""))[:300], "startsAt": a.get("startsAt")})
+        ALERTS_RECEIVED.labels(alertname=name, status=status).inc()
+    del alerts[:-100]
+    return {"stored": len(alerts)}
+
+
+@app.get("/alerts")
+def get_alerts(limit: int = 20):
+    return {"alerts": alerts[-limit:][::-1]}
 
 
 @app.get("/admin/slots")

@@ -1,0 +1,73 @@
+# Fraudar alert rules, evaluated by Prometheus and delivered by Alertmanager to the API
+# (POST /alerts/webhook), the control room and Grafana's alerting view.
+groups:
+  - name: fraudar-model
+    rules:
+      - alert: FraudarDriftConfirmed
+        expr: sum(orch_policy_state{state=~"A|B|C|U"}) == 1
+        labels: {severity: info}
+        annotations:
+          summary: "Confirmed drift; traffic routed away from v1"
+          description: "The orchestrator confirmed a drift and switched the serving model."
+
+      - alert: FraudarGuardrailRollback
+        expr: sum(increase(orch_guardrail_total[2m])) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Guardrail rolled back a failing model"
+          description: "A serving model fell below the F2 and recall floors and was replaced."
+
+      - alert: FraudarServingF2Low
+        expr: orch_guardrail_f2 >= 0 and orch_guardrail_f2 < 0.5
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "Serving model F2 below 0.5 for 1 minute"
+          description: "Live F2 of the serving model is {{ $value | printf \"%.2f\" }}."
+
+      - alert: FraudarRecallLow
+        expr: |
+          (
+            sum(increase(fraud_labeled_outcomes_total{outcome="tp"}[2m]))
+            / sum(increase(fraud_labeled_outcomes_total{outcome=~"tp|fn"}[2m]))
+          ) < 0.5
+          and sum(increase(fraud_labeled_outcomes_total{outcome=~"tp|fn"}[2m])) > 10
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "Less than half of fraud is being caught"
+          description: "Recall over the last 2 minutes is {{ $value | printf \"%.2f\" }}."
+
+  - name: fraudar-retraining
+    rules:
+      - alert: FraudarRetrainFailed
+        expr: sum(increase(retrain_runs_total{result="failed"}[10m])) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Retraining or candidate deployment failed"
+          description: "See logs/retrain.jsonl; the serving model was not changed."
+
+      - alert: FraudarRetrainedModelPromoted
+        expr: sum(increase(retrain_runs_total{result="promoted"}[2m])) > 0
+        labels: {severity: info}
+        annotations:
+          summary: "A retrained model passed its canary and now serves all traffic"
+          description: "Promoted after beating the serving model offline and on live traffic."
+
+  - name: fraudar-services
+    rules:
+      - alert: FraudarServiceDown
+        expr: up{job=~"fraud-detection-api|orchestrator"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }}."
+
+      - alert: FraudarScoringStalled
+        expr: sum(rate(stream_rows_sent_total[1m])) > 0 and sum(rate(fraud_predictions_total[1m])) == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Transactions are streaming but nothing is being scored"
+          description: "Check the scoring consumer and the API."

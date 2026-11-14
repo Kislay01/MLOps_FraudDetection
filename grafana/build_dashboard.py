@@ -299,6 +299,18 @@ panels += [
                decimals=0),
 ]
 
+panels += [
+    {"id": nid(), "type": "alertlist", "title": "15 · Alerts", "gridPos": {"x": 12, "y": 59, "w": 12, "h": 7},
+     "description": "Firing alerts from Prometheus rules (prometheus/alerts.yml): confirmed drift, guardrail rollback, "
+                    "low F2 or recall, failed retraining, promoted retrained model, services down, scoring stalled.",
+     "options": {"viewMode": "list", "groupMode": "default", "maxItems": 20, "sortOrder": 1,
+                 "dashboardAlerts": False, "alertName": "", "alertInstanceLabelFilter": "",
+                 "datasource": "Fraudar-Prometheus",
+                 "stateFilter": {"firing": True, "pending": True, "noData": False, "normal": False, "error": True}}},
+    stat_plain("Alerts fired", 0, 59, 12, 7, 'sum(increase(fraud_alerts_received_total{status="firing"}[$__range])) or vector(0)',
+               "Alert notifications delivered to the API by Alertmanager in the selected range.", decimals=0),
+]
+
 dashboard = {
     "uid": "fraudar-routing",
     "title": "Fraudar · Live Drift Routing",

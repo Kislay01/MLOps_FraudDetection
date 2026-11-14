@@ -2510,6 +2510,92 @@
         },
         "overrides": []
       }
+    },
+    {
+      "id": 27,
+      "type": "alertlist",
+      "title": "15 \u00b7 Alerts",
+      "gridPos": {
+        "x": 12,
+        "y": 59,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Firing alerts from Prometheus rules (prometheus/alerts.yml): confirmed drift, guardrail rollback, low F2 or recall, failed retraining, promoted retrained model, services down, scoring stalled.",
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "maxItems": 20,
+        "sortOrder": 1,
+        "dashboardAlerts": false,
+        "alertName": "",
+        "alertInstanceLabelFilter": "",
+        "datasource": "Fraudar-Prometheus",
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "noData": false,
+          "normal": false,
+          "error": true
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "stat",
+      "title": "Alerts fired",
+      "description": "Alert notifications delivered to the API by Alertmanager in the selected range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(increase(fraud_alerts_received_total{status=\"firing\"}[$__range])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
     }
   ]
 }

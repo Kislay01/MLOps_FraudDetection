@@ -1,0 +1,12 @@
+route:
+  receiver: fraudar-api
+  group_by: [alertname]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 30m
+receivers:
+  - name: fraudar-api
+    webhook_configs:
+      # the API keeps the latest alerts for the control room (GET /alerts)
+      - url: http://host.docker.internal:8000/alerts/webhook
+        send_resolved: true

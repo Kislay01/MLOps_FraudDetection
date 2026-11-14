@@ -67,6 +67,7 @@ def status():
                      **{n: _pid_alive(n) for n in ("consumer", "orchestrator", "retrain", "producer", "scenario")}},
         "active": active,
         "history": (slots or {}).get("history", [])[-8:],
+        "alerts": ((_get(f"{API}/alerts?limit=8") or {}).get("alerts")) or [],
         "perf": ((perf or {}).get("slots") or {}).get(active),
         "decision": _last_decision(),
         "action": {"name": state["name"], "running": running,
@@ -179,7 +180,8 @@ PAGE = r"""<!doctype html>
 
   <section class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
     <div class="card"><h2>Services</h2><div class="dots" id="services"></div>
-      <h2 style="margin-top:16px">Routing events</h2><ul id="events"></ul></div>
+      <h2 style="margin-top:16px">Routing events</h2><ul id="events"></ul>
+      <h2 style="margin-top:16px">Alerts</h2><ul id="alerts"></ul></div>
     <div class="card"><h2>Last action output</h2><pre id="log"></pre></div>
   </section>
 </main>
@@ -246,6 +248,12 @@ async function refresh() {
     const mm = MODEL[h.model];
     return `<li><time>${clock(h.timestamp)}</time><span><b>${esc(mm ? mm[0] : h.model)}</b> · ${esc(h.event)} · ${esc(h.reason)}</span></li>`;
   }).join("") || "<li>No routing events yet</li>";
+
+  const SEV = {critical: "#ff8a8a", warning: "#fab219", info: "#c3c2b7"};
+  $("alerts").innerHTML = (s.alerts || []).map(x => {
+    const c = x.status === "resolved" ? "#0ca30c" : (SEV[x.severity] || "#c3c2b7");
+    return `<li><time>${clock(x.received)}</time><span><b style="color:${c}">${esc(x.status === "resolved" ? "resolved" : x.severity)}</b> · ${esc(x.summary || x.alertname)}</span></li>`;
+  }).join("") || "<li>No alerts</li>";
 
   const a = s.action;
   document.querySelectorAll("button[data-act]").forEach(b => b.disabled = a.running);

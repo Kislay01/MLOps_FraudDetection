@@ -7,3 +7,15 @@ datasources:
     url: http://prometheus:9090
     isDefault: false
     editable: true
+    jsonData:
+      manageAlerts: true
+      alertmanagerUid: fraudar-am
+  - name: Fraudar-Alertmanager
+    uid: fraudar-am
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    editable: true
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false
