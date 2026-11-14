@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fraudar demo control.
-#   ./scripts/demo.sh up | down | restart | status | logs <name> | inject <A|B|C|U> | clear | scenario | wrongmodel | retraindemo
+#   ./scripts/demo.sh up | down | restart | status | logs <name> | inject <A|B|C|U> | clear | scenario | wrongmodel | retraindemo [A|B|C|U]
 set -u
 cd "$(dirname "$0")/.."
 PY=.venv/bin/python
@@ -118,16 +118,20 @@ wrongmodel() {
 }
 
 retraindemo() {
-  echo "retraining test: hold drift A, wait for specialist A, then for the retrained model to be canaried and promoted"
+  # usage: retraindemo [A|B|C|U]  (default U: the universal model is the weakest serving model, so a
+  # retrained candidate has the most room to win; with A/B/C the specialist is often already better)
+  local k="${1:-U}" target
+  case "$k" in A|B|C) target="fraud-spec-$k" ;; U) target="fraud-universal" ;; *) echo "usage: retraindemo [A|B|C|U]"; return 1 ;; esac
+  echo "retraining test: hold drift $k, wait for $target, then for a retrained candidate to be canaried and promoted or rejected"
   alive retrain || { echo "FAIL: retrain controller is not running (./scripts/demo.sh up starts it)"; return 1; }
-  $PY -m src.streaming.inject --type A --frac 0.3 > /dev/null
-  wait_active fraud-spec-A 90 || { echo "FAIL: router never switched to fraud-spec-A"; return 1; }
-  echo "  fraud-spec-A serving; collecting a fresh window (about 2 min at 50 tx/s)"
+  $PY -m src.streaming.inject --type "$k" --frac 0.3 > /dev/null
+  wait_active "$target" 90 || { echo "FAIL: router never switched to $target"; return 1; }
+  echo "  $target serving; collecting a fresh window (about 2 min at 50 tx/s)"
   local t0; t0=$(date +%s)
   if wait_active fraud-retrained 360; then
     echo "PASS: retrained model promoted after $(( $(date +%s) - t0 )) s"
   else
-    echo "RESULT: no promotion within 6 min (serving $(active)); see ./scripts/demo.sh logs retrain"
+    echo "RESULT: no promotion within 6 min (serving $(active)); the decision is below"
   fi
   tail -n 3 logs/retrain.jsonl 2>/dev/null
   $PY -m src.streaming.inject --clear > /dev/null
@@ -146,7 +150,7 @@ case "${1:-}" in
     start scenario $PY -u -m src.streaming.inject --scenario demo --hold 45 --gap 40
     echo "  runs about 6 minutes; follow it with: ./scripts/demo.sh logs scenario" ;;
   wrongmodel) wrongmodel ;;
-  retraindemo) retraindemo ;;
+  retraindemo) retraindemo "${2:-U}" ;;
   panel)
     start panel .venv/bin/uvicorn src.control.panel:app --host 127.0.0.1 --port 8100
     echo "  control room: http://localhost:8100" ;;
