@@ -15,7 +15,7 @@ RUN, LOGS = ROOT / ".run", ROOT / "logs" / "run"
 from src.settings import API_URL as API, MLFLOW_URI as MLFLOW
 ACTIONS = {
     "up": ["up"], "restart": ["restart"], "down": ["down"],
-    "scenario": ["scenario"], "wrongmodel": ["wrongmodel"], "clear": ["clear"],
+    "scenario": ["scenario"], "wrongmodel": ["wrongmodel"], "retraindemo": ["retraindemo"], "clear": ["clear"],
     "inject-A": ["inject", "A"], "inject-B": ["inject", "B"],
     "inject-C": ["inject", "C"], "inject-U": ["inject", "U"],
 }
@@ -64,7 +64,7 @@ def status():
     log = LOGS / "action.log"
     return {
         "services": {"mlflow": _get(f"{MLFLOW}/health") is not None, "api": slots is not None,
-                     **{n: _pid_alive(n) for n in ("consumer", "orchestrator", "producer", "scenario")}},
+                     **{n: _pid_alive(n) for n in ("consumer", "orchestrator", "retrain", "producer", "scenario")}},
         "active": active,
         "history": (slots or {}).get("history", [])[-8:],
         "perf": ((perf or {}).get("slots") or {}).get(active),
@@ -164,6 +164,7 @@ PAGE = r"""<!doctype html>
       <div class="group"><h3>Show the system</h3><div class="row">
         <button class="go" data-act="scenario">Run full scenario (~6 min)</button>
         <button data-act="wrongmodel">Wrong-model test</button>
+        <button data-act="retraindemo">Retraining test (~4 min)</button>
       </div></div>
       <div class="group"><h3>Inject a drift</h3><div class="row">
         <button class="A" data-act="inject-A">A · amount</button>
@@ -189,6 +190,7 @@ const MODEL = {
   "fraud-spec-B": ["Specialist B · device/email", "#199e70"],
   "fraud-spec-C": ["Specialist C · velocity", "#c98500"],
   "fraud-universal": ["Universal model", "#d55181"],
+  "fraud-retrained": ["Retrained model", "#8f6ad6"],
 };
 const DRIFT = {
   normal: ["Normal traffic", "#3987e5"],
@@ -236,7 +238,7 @@ async function refresh() {
     $("guardSub").textContent = p ? `${p.n} rows since routed in` : "";
   }
 
-  const names = {mlflow: "MLflow", api: "API", consumer: "Scorer", orchestrator: "Orchestrator", producer: "Stream", scenario: "Scenario"};
+  const names = {mlflow: "MLflow", api: "API", consumer: "Scorer", orchestrator: "Orchestrator", retrain: "Retraining", producer: "Stream", scenario: "Scenario"};
   $("services").innerHTML = Object.entries(names)
     .map(([k, v]) => `<span class="dot ${s.services[k] ? "on" : ""}"><i></i>${v}</span>`).join("");
 

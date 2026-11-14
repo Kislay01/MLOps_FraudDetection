@@ -68,7 +68,7 @@
             "type": "prometheus",
             "uid": "fraudar-prom"
           },
-          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"})",
+          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"}) + 5*sum(fraud_active_model{model=\"fraud-retrained\"})",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -122,6 +122,11 @@
                   "text": "Universal model",
                   "color": "#d55181",
                   "index": 4
+                },
+                "5": {
+                  "text": "Retrained model",
+                  "color": "#8f6ad6",
+                  "index": 5
                 }
               }
             }
@@ -789,7 +794,7 @@
             "type": "prometheus",
             "uid": "fraudar-prom"
           },
-          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"})",
+          "expr": "sum(fraud_active_model{model=\"fraud-spec-A\"}) + 2*sum(fraud_active_model{model=\"fraud-spec-B\"}) + 3*sum(fraud_active_model{model=\"fraud-spec-C\"}) + 4*sum(fraud_active_model{model=\"fraud-universal\"}) + 5*sum(fraud_active_model{model=\"fraud-retrained\"})",
           "legendFormat": "Serving model",
           "refId": "A",
           "instant": false,
@@ -876,6 +881,18 @@
                   "text": "Universal model",
                   "color": "#d55181",
                   "index": 4
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 4.5,
+                "to": 5.5,
+                "result": {
+                  "text": "Retrained model",
+                  "color": "#8f6ad6",
+                  "index": 5
                 }
               }
             }
@@ -1171,6 +1188,21 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-retrained"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f6ad6"
+                }
+              }
+            ]
           }
         ]
       }
@@ -1405,6 +1437,21 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "#d55181"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "fraud-retrained"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f6ad6"
                 }
               }
             ]
@@ -2051,6 +2098,384 @@
             "uid": "fraudar-prom"
           },
           "expr": "sum(increase(orch_guardrail_total[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 23,
+      "type": "state-timeline",
+      "title": "13 \u00b7 Retraining controller",
+      "description": "Collecting: a specialist or the universal model is serving and the controller is gathering a fresh labeled window. Training: a candidate is being trained on it. Canary: the candidate gets a share of live traffic and is promoted only if its live F2 keeps up with the serving model.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(retrain_phase{phase=\"collecting\"}) + 2*sum(retrain_phase{phase=\"training\"}) + 3*sum(retrain_phase{phase=\"canary\"})",
+          "legendFormat": "Phase",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -0.5,
+                "to": 0.5,
+                "result": {
+                  "text": "Idle",
+                  "color": "#898781",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1.5,
+                "result": {
+                  "text": "Collecting fresh rows",
+                  "color": "#3987e5",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1.5,
+                "to": 2.5,
+                "result": {
+                  "text": "Training",
+                  "color": "#fab219",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 2.5,
+                "to": 3.5,
+                "result": {
+                  "text": "Canary",
+                  "color": "#8f6ad6",
+                  "index": 3
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "14 \u00b7 Canary share and candidate quality",
+      "description": "Held-out F2 compares the candidate and the serving model on the newest 20% of the fresh window, which the candidate never trained on. Canary live F2 is measured on real traffic during the canary.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 50,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "fraud_canary_weight",
+          "legendFormat": "Canary traffic share",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "retrain_candidate_f2",
+          "legendFormat": "Candidate F2 (held-out)",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "retrain_serving_f2",
+          "legendFormat": "Serving model F2 (held-out)",
+          "refId": "C",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "retrain_canary_live_f2 >= 0",
+          "legendFormat": "Canary live F2",
+          "refId": "D",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "gradientMode": "none",
+            "axisBorderShow": false
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Canary traffic share"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#898781"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Candidate F2 (held-out)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8f6ad6"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Serving model F2 (held-out)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#ffffff"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Canary live F2"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#0ca30c"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Retrained models promoted",
+      "description": "Candidates that passed both the offline check and the live canary in the selected range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(increase(retrain_runs_total{result=\"promoted\"}[$__range])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "text": {
+          "valueSize": 20
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c3c2b7"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Candidates rejected",
+      "description": "Candidates that did not beat the serving model offline, lost the canary, timed out or failed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fraudar-prom"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "fraudar-prom"
+          },
+          "expr": "sum(increase(retrain_runs_total{result=~\"rejected_offline|rejected_live|canary_timeout|failed\"}[$__range])) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,

@@ -40,6 +40,13 @@ def test_interim_between_two_drifts():
     assert r == ["fraud-universal", "fraud-spec-A", "fraud-universal", "fraud-spec-C"]
 
 
+def test_interim_restores_previous_route():
+    """A spurious pending reading while a retrained model serves must hand traffic back to it."""
+    assert interim_step("pending", "A", False, "fraud-retrained")[0] == "fraud-universal"
+    assert interim_step("none", "A", True, "fraud-retrained") == ("fraud-retrained", False,
+                                                                 "interim ended: drift not confirmed")
+
+
 def test_no_interim_when_already_universal():
     assert run(["U", "U", "A", "A"]) == ["fraud-universal", "fraud-universal", "fraud-universal", "fraud-spec-A"]
 

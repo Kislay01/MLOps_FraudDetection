@@ -40,6 +40,7 @@ SLOT_ALIASES = {
     "fraud-spec-B": "production",
     "fraud-spec-C": "production",
     "fraud-universal": "production",
+    "fraud-retrained": "candidate",  # written by the retraining controller; absent until the first retrain
 }
 AUDIT_FEATURES = [
     "TransactionAmt", "txn_1h_count", "time_since_last_txn",
@@ -320,6 +321,7 @@ def reload_slot(req: ReloadRequest):
         raise HTTPException(status_code=400, detail=f"Unknown model {req.model}")
     _load_slot(req.model)
     _record("reload", req.model, "registry reload")
+    _publish_state()
     return {"model": req.model, "version": slots[req.model]["version"]}
 
 

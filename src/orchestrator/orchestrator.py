@@ -40,6 +40,7 @@ FALLBACK = {
     "fraud-spec-B": "fraud-universal",
     "fraud-spec-C": "fraud-universal",
     "fraud-universal": "fraud-detection-model",
+    "fraud-retrained": "fraud-universal",
 }
 
 
@@ -51,6 +52,15 @@ def guard_status(api):
     except Exception as e:
         API_ERRORS.inc()
         print(f"  !! performance call failed: {e}", flush=True)
+        return None
+
+
+def current_active(api):
+    try:
+        r = requests.get(f"{api}/health", timeout=5)
+        r.raise_for_status()
+        return r.json()["active"]
+    except Exception:
         return None
 
 
@@ -116,7 +126,7 @@ def main():
     for ev in ("switch", "recover", "guardrail", "interim", "interim_end"):
         DECISIONS.labels(event=ev).inc(0)
     strikes = 0
-    interim = False
+    interim, before_interim = False, None
 
     consumer = KafkaConsumer(
         TOPIC, bootstrap_servers=KAFKA, auto_offset_reset="latest", group_id=a.group,
@@ -158,7 +168,9 @@ def main():
 
         interim_event = None
         if not a.no_interim:
-            to, interim_new, why = interim_step(d["event"], policy.state, interim)
+            if d["event"] == "pending" and not interim:
+                before_interim = current_active(a.api)
+            to, interim_new, why = interim_step(d["event"], policy.state, interim, before_interim)
             if to and set_route(a.api, to, f"{why} (fingerprint={label})"):
                 interim_event = "interim" if interim_new else "interim_end"
                 DECISIONS.labels(event=interim_event).inc()

@@ -6,6 +6,7 @@ DS = {"type": "prometheus", "uid": "fraudar-prom"}
 
 # Colour follows the entity everywhere (dark-surface categorical slots, fixed order).
 BLUE, ORANGE, AQUA, YELLOW, MAGENTA = "#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"
+VIOLET = "#8f6ad6"
 GOOD, WARN, CRIT = "#0ca30c", "#fab219", "#d03b3b"
 MUTED, INK, WHITE = "#898781", "#c3c2b7", "#ffffff"
 
@@ -17,10 +18,11 @@ DRIFT_MAP = {
 MODEL_MAP = {
     0: ("v1 · general model", BLUE), 1: ("Specialist A · amount", ORANGE),
     2: ("Specialist B · device/email", AQUA), 3: ("Specialist C · velocity", YELLOW),
-    4: ("Universal model", MAGENTA),
+    4: ("Universal model", MAGENTA), 5: ("Retrained model", VIOLET),
 }
-MODELS = ["fraud-detection-model", "fraud-spec-A", "fraud-spec-B", "fraud-spec-C", "fraud-universal"]
-MODEL_COLOR = dict(zip(MODELS, [BLUE, ORANGE, AQUA, YELLOW, MAGENTA]))
+MODELS = ["fraud-detection-model", "fraud-spec-A", "fraud-spec-B", "fraud-spec-C", "fraud-universal",
+          "fraud-retrained"]
+MODEL_COLOR = dict(zip(MODELS, [BLUE, ORANGE, AQUA, YELLOW, MAGENTA, VIOLET]))
 
 _id = 0
 
@@ -267,6 +269,33 @@ panels += [
                           "steps": [{"color": CRIT, "value": None}, {"color": GOOD, "value": 0.5}]}}),
     stat_plain("Guardrail rollbacks", 18, 42, 6, 8, "sum(increase(orch_guardrail_total[$__range]))",
                "Times the guardrail rolled a failing model back automatically in the selected time range.",
+               decimals=0),
+]
+
+PHASE_MAP = {0: ("Idle", MUTED), 1: ("Collecting fresh rows", BLUE), 2: ("Training", WARN), 3: ("Canary", VIOLET)}
+phase_expr = code_expr("retrain_phase", "phase", ["collecting", "training", "canary"])
+
+panels += [
+    timeline("13 · Retraining controller", 0, 50, 12, 5, [tgt(phase_expr, "Phase")], PHASE_MAP,
+             "Collecting: a specialist or the universal model is serving and the controller is gathering a "
+             "fresh labeled window. Training: a candidate is being trained on it. Canary: the candidate gets a "
+             "share of live traffic and is promoted only if its live F2 keeps up with the serving model."),
+    ts("14 · Canary share and candidate quality", 12, 50, 12, 9,
+       [tgt("fraud_canary_weight", "Canary traffic share", "A"),
+        tgt("retrain_candidate_f2", "Candidate F2 (held-out)", "B"),
+        tgt("retrain_serving_f2", "Serving model F2 (held-out)", "C"),
+        tgt("retrain_canary_live_f2 >= 0", "Canary live F2", "D")],
+       "Held-out F2 compares the candidate and the serving model on the newest 20% of the fresh window, "
+       "which the candidate never trained on. Canary live F2 is measured on real traffic during the canary.",
+       overrides=[color_ov("Canary traffic share", MUTED), color_ov("Candidate F2 (held-out)", VIOLET, 3),
+                  color_ov("Serving model F2 (held-out)", WHITE), color_ov("Canary live F2", GOOD, 2)],
+       minv=0, maxv=1),
+    stat_plain("Retrained models promoted", 0, 55, 6, 4,
+               'sum(increase(retrain_runs_total{result="promoted"}[$__range])) or vector(0)',
+               "Candidates that passed both the offline check and the live canary in the selected range.", decimals=0),
+    stat_plain("Candidates rejected", 6, 55, 6, 4,
+               'sum(increase(retrain_runs_total{result=~"rejected_offline|rejected_live|canary_timeout|failed"}[$__range])) or vector(0)',
+               "Candidates that did not beat the serving model offline, lost the canary, timed out or failed.",
                decimals=0),
 ]
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fraudar demo control.
-#   ./scripts/demo.sh up | down | restart | status | logs <name> | inject <A|B|C|U> | clear | scenario | wrongmodel
+#   ./scripts/demo.sh up | down | restart | status | logs <name> | inject <A|B|C|U> | clear | scenario | wrongmodel | retraindemo
 set -u
 cd "$(dirname "$0")/.."
 PY=.venv/bin/python
@@ -56,8 +56,10 @@ up() {
   echo "[4/5] scoring consumer + orchestrator"
   start consumer $PY -u -m src.streaming.scoring_consumer
   start orchestrator $PY -u -m src.orchestrator.orchestrator
+  start retrain $PY -u -m src.retrain.controller
   wait_log "$LOGS/consumer.log" "Scoring consumer ready" 60 || return 1
   wait_log "$LOGS/orchestrator.log" "Orchestrator ready" 60 || return 1
+  wait_log "$LOGS/retrain.log" "Retrain controller ready" 60 || echo "  (retrain controller not ready; demo continues without it)"
   sleep 8   # let both consumer groups join before the first row is produced
 
   echo "[5/5] stream producer (warm-up takes about 100 s)"
@@ -70,7 +72,7 @@ up() {
 }
 
 down() {
-  for n in scenario producer orchestrator consumer api mlflow; do stop "$n"; done
+  for n in scenario producer retrain orchestrator consumer api mlflow; do stop "$n"; done
   sleep 2
 }
 
@@ -78,14 +80,14 @@ reset() {
   down
   local ts; ts=$(date +%Y%m%d-%H%M%S)
   mkdir -p "logs/archive/$ts"
-  for f in logs/decisions.jsonl logs/predictions_audit.jsonl; do
+  for f in logs/decisions.jsonl logs/predictions_audit.jsonl logs/retrain.jsonl; do
     [ -f "$f" ] && mv "$f" "logs/archive/$ts/"
   done
   echo "  old logs archived to logs/archive/$ts"
 }
 
 status() {
-  for n in mlflow api consumer orchestrator producer scenario; do
+  for n in mlflow api consumer orchestrator retrain producer scenario; do
     if alive "$n"; then echo "  running  $n"; else echo "  stopped  $n"; fi
   done
   echo "  serving model: $(active)"
@@ -115,18 +117,36 @@ wrongmodel() {
   fi
 }
 
+retraindemo() {
+  echo "retraining test: hold drift A, wait for specialist A, then for the retrained model to be canaried and promoted"
+  alive retrain || { echo "FAIL: retrain controller is not running (./scripts/demo.sh up starts it)"; return 1; }
+  $PY -m src.streaming.inject --type A --frac 0.3 > /dev/null
+  wait_active fraud-spec-A 90 || { echo "FAIL: router never switched to fraud-spec-A"; return 1; }
+  echo "  fraud-spec-A serving; collecting a fresh window (about 2 min at 50 tx/s)"
+  local t0; t0=$(date +%s)
+  if wait_active fraud-retrained 360; then
+    echo "PASS: retrained model promoted after $(( $(date +%s) - t0 )) s"
+  else
+    echo "RESULT: no promotion within 6 min (serving $(active)); see ./scripts/demo.sh logs retrain"
+  fi
+  tail -n 3 logs/retrain.jsonl 2>/dev/null
+  $PY -m src.streaming.inject --clear > /dev/null
+  wait_active fraud-detection-model 120 && echo "PASS: back on v1 after the drift ended"
+}
+
 case "${1:-}" in
   up) up ;;
   down) down ;;
   restart) reset; up ;;
   status) status ;;
-  logs) tail -n 40 -f "$LOGS/${2:?usage: logs <mlflow|api|consumer|orchestrator|producer|scenario>}.log" ;;
+  logs) tail -n 40 -f "$LOGS/${2:?usage: logs <mlflow|api|consumer|orchestrator|retrain|producer|scenario>}.log" ;;
   inject) $PY -m src.streaming.inject --type "${2:?usage: inject A|B|C|U}" --frac 0.3 ;;
   clear) $PY -m src.streaming.inject --clear ;;
   scenario)
     start scenario $PY -u -m src.streaming.inject --scenario demo --hold 45 --gap 40
     echo "  runs about 6 minutes; follow it with: ./scripts/demo.sh logs scenario" ;;
   wrongmodel) wrongmodel ;;
+  retraindemo) retraindemo ;;
   panel)
     start panel .venv/bin/uvicorn src.control.panel:app --host 127.0.0.1 --port 8100
     echo "  control room: http://localhost:8100" ;;
