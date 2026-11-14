@@ -48,14 +48,23 @@ class Fingerprinter:
         ratio = {c: ks[c] / self.tau[c] for c in self.features}
         out = {g: float(np.mean(sorted((ratio[c] for c in cols), reverse=True)[:3])) for g, cols in GROUPS.items()}
         out["breadth"] = int(sum(ratio[c] > 1 for c in self.other))
+        # ungrouped features shifted far beyond anything seen on clean traffic
+        out["strong"] = int(sum(ratio[c] >= STRONG_RATIO for c in self.other))
         return out
 
 
-def classify(s, group_thr=1.25, breadth_thr=20):
+STRONG_RATIO = 2.0
+
+
+def classify(s, group_thr=1.25, breadth_thr=20, novel_min=None):
+    """novel_min: if set, a window with no group alarm but at least this many strongly shifted
+    ungrouped features is labelled U (an unknown pattern), so the universal model takes it."""
     if s["breadth"] >= breadth_thr:
         return "U"
     active = {g: s[g] for g in GROUPS if s[g] >= group_thr}
     if not active:
+        if novel_min and s.get("strong", 0) >= novel_min:
+            return "U"
         return "normal"
     if len(active) >= 2:
         return "U"

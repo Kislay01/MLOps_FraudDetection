@@ -14,7 +14,7 @@ from kafka import KafkaConsumer
 from prometheus_client import Counter, Gauge, start_http_server
 
 from src.router.fingerprint import GROUPS, classify
-from src.router.policy import ROUTES, RoutingPolicy
+from src.router.policy import ROUTES, RoutingPolicy, interim_step
 from src.settings import API_URL, KAFKA, admin_headers
 
 TOPIC = "transactions"
@@ -90,6 +90,10 @@ def main():
     ap.add_argument("--min-pos", type=int, default=10)
     ap.add_argument("--guard-strikes", type=int, default=2)
     ap.add_argument("--recall-floor", type=float, default=0.5, help="guardrail also needs recall below this")
+    ap.add_argument("--no-interim", action="store_true",
+                    help="do not serve the universal model while a new drift awaits confirmation")
+    ap.add_argument("--novel-min", type=int, default=3,
+                    help="strongly shifted ungrouped features that mark an unknown drift (0 = off)")
     a = ap.parse_args()
 
     os.makedirs("logs", exist_ok=True)
@@ -109,9 +113,10 @@ def main():
     GUARD_F2.set(-1)
     for m in FALLBACK:
         GUARDRAIL.labels(model=m).inc(0)
-    for ev in ("switch", "recover", "guardrail"):
+    for ev in ("switch", "recover", "guardrail", "interim", "interim_end"):
         DECISIONS.labels(event=ev).inc(0)
     strikes = 0
+    interim = False
 
     consumer = KafkaConsumer(
         TOPIC, bootstrap_servers=KAFKA, auto_offset_reset="latest", group_id=a.group,
@@ -143,13 +148,23 @@ def main():
             continue
 
         s = fp.score(df_from(recent, cols))
-        label = classify(s, group_thr=GROUP_THR, breadth_thr=BREADTH_THR)
+        label = classify(s, group_thr=GROUP_THR, breadth_thr=BREADTH_THR, novel_min=a.novel_min or None)
         d = policy.update(label)
 
         if d["event"] in ("switch", "recover"):
             reason = f"fingerprint={label}" if d["event"] == "switch" else "traffic normal again"
             set_route(a.api, d["route"], reason)
             DECISIONS.labels(event=d["event"]).inc()
+
+        interim_event = None
+        if not a.no_interim:
+            to, interim_new, why = interim_step(d["event"], policy.state, interim)
+            if to and set_route(a.api, to, f"{why} (fingerprint={label})"):
+                interim_event = "interim" if interim_new else "interim_end"
+                DECISIONS.labels(event=interim_event).inc()
+                interim = interim_new
+            elif not to:
+                interim = interim_new
 
         perf = guard_status(a.api)
         guard_event = None
@@ -192,6 +207,7 @@ def main():
             "event": d["event"], "state": policy.state, "route": d["route"],
             "scores": {g: round(s[g], 3) for g in GROUPS}, "breadth": s["breadth"],
             "active": perf["active"] if perf else None, "guardrail": guard_event,
+            "interim": interim_event, "strong": s.get("strong", 0),
         }
         with open(DECISIONS_LOG, "a") as f:
             f.write(json.dumps(entry) + "\n")

@@ -9,6 +9,24 @@ ROUTES = {
 }
 
 
+SAFE_ROUTE = ROUTES["U"]
+
+
+def interim_step(event, state, interim):
+    """Cover the confirmation gap. While a new drift waits for confirmation the recall-oriented
+    universal model serves; if the drift is not confirmed, the policy's own route is restored.
+    Returns (route_to_set or None, new_interim_flag, reason or None)."""
+    if event in ("switch", "recover"):
+        return None, False, None
+    if event == "pending":
+        if not interim and ROUTES[state] != SAFE_ROUTE:
+            return SAFE_ROUTE, True, "interim: new drift awaiting confirmation"
+        return None, interim, None
+    if interim:
+        return ROUTES[state], False, "interim ended: drift not confirmed"
+    return None, False, None
+
+
 class RoutingPolicy:
     def __init__(self, confirm=2, recover=3):
         self.confirm, self.recover = confirm, recover
