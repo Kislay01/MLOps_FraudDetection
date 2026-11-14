@@ -233,6 +233,11 @@ class ReloadRequest(BaseModel):
     model: str
 
 
+class ScoreRequest(BaseModel):
+    model: str
+    rows: list
+
+
 class ThresholdRequest(BaseModel):
     model: str
     threshold: float
@@ -334,6 +339,22 @@ def set_threshold(req: ThresholdRequest):
     slots[req.model]["threshold"] = req.threshold
     _record("threshold", req.model, f"{old:.4f} -> {req.threshold:.4f} ({req.reason})")
     return {"model": req.model, "threshold": req.threshold, "previous": old}
+
+
+@app.post("/admin/score", dependencies=[Depends(require_admin)])
+def score_rows(req: ScoreRequest):
+    """Score rows with a named model without routing, metrics or audit side effects (parity checks)."""
+    if req.model not in slots:
+        raise HTTPException(status_code=400, detail=f"Model {req.model} not loaded")
+    if len(req.rows) > 5000:
+        raise HTTPException(status_code=400, detail="at most 5000 rows per call")
+    slot = slots[req.model]
+    names = slot["feature_names"]
+    x = np.array([[np.nan if r.get(c) is None else r.get(c, 0) for c in names] for r in req.rows],
+                 dtype=np.float32).reshape(len(req.rows), len(names))
+    p = slot["model"].predict_proba(x)[:, 1] if len(req.rows) else np.array([])
+    return {"model": req.model, "version": slot["version"], "threshold": slot["threshold"],
+            "probabilities": [float(v) for v in p]}
 
 
 @app.post("/admin/reload", dependencies=[Depends(require_admin)])

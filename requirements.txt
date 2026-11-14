@@ -1,0 +1,17 @@
+# Runtime dependencies for the Fraudar services.
+# Pin xgboost / scikit-learn to the versions that trained the models in models/ (check with
+# `pip freeze | grep -iE "xgboost|scikit-learn"` in your .venv) so a deployed model scores identically;
+# src/analysis/parity_check.py verifies this after deployment.
+xgboost>=2.0
+scikit-learn>=1.3
+pandas>=2.0
+numpy>=1.24
+scipy>=1.10
+joblib>=1.3
+mlflow>=2.12
+fastapi>=0.110
+uvicorn>=0.27
+pydantic>=2.0
+requests>=2.31
+kafka-python>=2.0.2
+prometheus-client>=0.19

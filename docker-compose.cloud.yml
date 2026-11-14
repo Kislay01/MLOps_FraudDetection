@@ -1,0 +1,131 @@
+# Full Fraudar stack for one cloud VM (see docs/DEPLOY_CLOUD.md).
+#   cp .env.example .env   # set FRAUDAR_ADMIN_TOKEN and GRAFANA_PASSWORD
+#   dvc pull               # data/ and models/ on the host
+#   docker compose -f docker-compose.cloud.yml up -d --build
+# Only Grafana (3000) is published publicly; the API is bound to localhost on the VM.
+x-app: &app
+  build: .
+  image: fraudar-app:latest
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    FRAUDAR_KAFKA: kafka:29092
+    FRAUDAR_MLFLOW: http://mlflow:5000
+    FRAUDAR_API: http://api:8000
+  volumes:
+    - ./data:/app/data:ro
+    - ./models:/app/models:ro
+    - app-logs:/app/logs
+    - control:/app/control
+
+services:
+  kafka:
+    image: apache/kafka:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CLUSTER_ID: fraudar-cluster-01
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      interval: 10s
+      retries: 12
+
+  mlflow:
+    <<: *app
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////mlflow/mlflow.db
+             --artifacts-destination /mlflow/artifacts --serve-artifacts
+    volumes:
+      - mlflow:/mlflow
+    user: root
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5000/health"]
+      interval: 10s
+      retries: 12
+
+  bootstrap:   # one-off: registers v1 + the model zoo from models/*.pkl into this MLflow
+    <<: *app
+    restart: "no"
+    command: python -m src.deploy.bootstrap_registry
+    depends_on:
+      mlflow: {condition: service_healthy}
+
+  api:
+    <<: *app
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health"]
+      interval: 10s
+      retries: 18
+
+  consumer:
+    <<: *app
+    command: python -u -m src.streaming.scoring_consumer
+    depends_on:
+      api: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+
+  orchestrator:
+    <<: *app
+    command: python -u -m src.orchestrator.orchestrator
+    depends_on:
+      api: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+
+  retrain:
+    <<: *app
+    command: python -u -m src.retrain.controller
+    depends_on:
+      api: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+
+  producer:
+    <<: *app
+    command: python -u -m src.streaming.drift_producer --tps 50 --warmup 5000 --rows 30000
+    depends_on:
+      orchestrator: {condition: service_started}
+      consumer: {condition: service_started}
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./deploy/prometheus.cloud.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    volumes:
+      - ./deploy/alertmanager.cloud.yml:/etc/alertmanager/alertmanager.yml:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [prometheus]
+
+volumes:
+  mlflow:
+  grafana:
+  app-logs:
+  control:

@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: fraud-detection-api
+    static_configs:
+      - targets: ["api:8000"]
+  - job_name: orchestrator
+    static_configs:
+      - targets: ["orchestrator:8001"]
+  - job_name: stream-producer
+    static_configs:
+      - targets: ["producer:8002"]
+  - job_name: retrain-controller
+    static_configs:
+      - targets: ["retrain:8003"]
