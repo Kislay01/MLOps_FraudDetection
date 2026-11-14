@@ -46,6 +46,9 @@ AUDIT_FEATURES = [
     "P_emaildomain_freq", "DeviceType_freq", "ProductCD_C", "C1", "C2",
 ]
 
+# Optional per-model threshold overrides (e.g. models/thresholds_recall.json from tune_thresholds.py)
+THRESHOLDS_FILE = os.getenv("FRAUDAR_THRESHOLDS", "")
+
 AUDIT_LOG_PATH = "logs/predictions_audit.jsonl"
 os.makedirs("logs", exist_ok=True)
 
@@ -90,6 +93,16 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _threshold_override(name: str):
+    if not THRESHOLDS_FILE:
+        return None
+    try:
+        return json.load(open(THRESHOLDS_FILE))["thresholds"].get(name)
+    except Exception as e:
+        logger.warning(f"Could not read {THRESHOLDS_FILE}: {e}")
+        return None
+
+
 def _load_slot(name: str):
     alias = SLOT_ALIASES[name]
     mv = client.get_model_version_by_alias(name, alias)
@@ -103,6 +116,10 @@ def _load_slot(name: str):
         "kind": tags.get("drift_type", tags.get("role", "normal")),
         "feature_names": _single_thread(model),
     }
+    override = _threshold_override(name)
+    if override is not None:
+        slots[name]["registry_threshold"] = slots[name]["threshold"]
+        slots[name]["threshold"] = float(override)
     logger.info(f"Loaded {name}@{alias}: v{mv.version}, threshold {slots[name]['threshold']}")
 
 
@@ -212,6 +229,12 @@ class ReloadRequest(BaseModel):
     model: str
 
 
+class ThresholdRequest(BaseModel):
+    model: str
+    threshold: float
+    reason: str = "manual"
+
+
 @app.get("/health")
 def health_check():
     return {
@@ -275,6 +298,19 @@ def rollback():
         raise HTTPException(status_code=400, detail="No previous model to roll back to")
     _cutover(state["previous"], "rollback")
     return {"active": state["active"], "previous": state["previous"]}
+
+
+@app.post("/admin/threshold", dependencies=[Depends(require_admin)])
+def set_threshold(req: ThresholdRequest):
+    """Change a loaded model's decision threshold live (lower = higher recall, lower precision)."""
+    if req.model not in slots:
+        raise HTTPException(status_code=400, detail=f"Model {req.model} not loaded")
+    if not 0.0 < req.threshold < 1.0:
+        raise HTTPException(status_code=400, detail="threshold must be between 0 and 1")
+    old = slots[req.model]["threshold"]
+    slots[req.model]["threshold"] = req.threshold
+    _record("threshold", req.model, f"{old:.4f} -> {req.threshold:.4f} ({req.reason})")
+    return {"model": req.model, "threshold": req.threshold, "previous": old}
 
 
 @app.post("/admin/reload", dependencies=[Depends(require_admin)])
